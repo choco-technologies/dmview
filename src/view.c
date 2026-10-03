@@ -9,7 +9,6 @@
  * redraw, and a validated view needs no checks while it runs.
  */
 
-#define HEADER_SIZE     80u
 #define STRING_CHUNK    32u
 
 /* ---- Reading ---- */
@@ -175,8 +174,8 @@ static void free_view(struct libdmview* v)
                 Dmod_Free(v->strs[i]);
         }
     }
-    void* blocks[] = { v->code, v->strings, v->vars, v->font_scale, v->boxes, v->items, v->ints, v->strs,
-                       v->deps, v->goto_path, v->goto_taken };
+    void* blocks[] = { v->code, v->strings, v->vars, v->font_scale, v->boxes, v->items, v->gradients, v->stops,
+                       v->ints, v->strs, v->deps, v->goto_path, v->goto_taken };
     for (size_t i = 0; i < sizeof(blocks) / sizeof(blocks[0]); i++)
     {
         if (blocks[i] != NULL)
@@ -319,6 +318,47 @@ static int load_tables(struct libdmview* v, const dmv_input_t* in, const uint8_t
     }
     Dmod_Free(raw);
 
+    /* Gradients (version 0.2) - their palettes are built when first drawn */
+    if (rd16(h + 6) >= 2)
+    {
+        v->gradient_count = rd32(h + 84);
+        uint32_t stop_count = rd32(h + 92);
+        if ((raw = read_block(in, rd32(h + 80), v->gradient_count * sizeof(dmv_gradient_t), &status)) == NULL)
+            return status;
+        v->gradients = Dmod_Malloc(v->gradient_count * sizeof(grad_t) + 1U);
+        v->stops = Dmod_Malloc(stop_count * sizeof(dmv_stop_t) + 1U);
+        uint8_t* stops = read_block(in, rd32(h + 88), stop_count * sizeof(dmv_stop_t), &status);
+        if (v->gradients == NULL || v->stops == NULL || stops == NULL)
+        {
+            Dmod_Free(raw);
+            if (stops != NULL)
+                Dmod_Free(stops);
+            return (status != 0) ? status : -ENOMEM;
+        }
+        for (uint32_t i = 0; i < stop_count; i++)
+        {
+            v->stops[i].color = rd32(stops + i * sizeof(dmv_stop_t));
+            v->stops[i].position = rd16(stops + i * sizeof(dmv_stop_t) + 4U);
+            v->stops[i].reserved = 0;
+        }
+        Dmod_Free(stops);
+        for (uint32_t i = 0; i < v->gradient_count; i++)
+        {
+            const uint8_t* p = raw + i * sizeof(dmv_gradient_t);
+            grad_t* g = &v->gradients[i];
+            g->kind = p[2];
+            g->count = p[3];
+            g->first = rd16(p + 4);
+            for (uint32_t k = 0; k < 4U; k++)
+                g->param[k] = (int16_t)rd16(p + 6U + 2U * k);
+            g->opaque = true;
+            for (uint32_t k = 0; k < g->count; k++)
+                g->opaque = g->opaque && (v->stops[g->first + k].color >> 24) == 0xFFu;
+            g->lut_format = GRADIENT_NO_LUT;
+        }
+        Dmod_Free(raw);
+    }
+
     /* Dependencies: a row per box and one for the root */
     v->dep_words = (v->var_count + 31U) / 32U + 1U;
     size_t deps_size = (v->box_count + 1U) * v->dep_words * sizeof(uint32_t);
@@ -330,7 +370,7 @@ static int load_tables(struct libdmview* v, const dmv_input_t* in, const uint8_t
 
 dmod_libdmview_api_declaration(1.0, libdmview_t, _open_input, ( const dmv_input_t* input, int* status ))
 {
-    uint8_t header[HEADER_SIZE];
+    uint8_t header[DMV_HEADER_SIZE];
     int ret = 0;
 
     if (status != NULL)
@@ -350,7 +390,9 @@ dmod_libdmview_api_declaration(1.0, libdmview_t, _open_input, ( const dmv_input_
     }
 
     struct libdmview* v = NULL;
-    if (ret == 0 && !rd(input, 0, header, sizeof(header)))
+    if (ret == 0 && (!rd(input, 0, header, DMV_HEADER_SIZE_0_1) ||
+                     (rd16(header + 6) >= 2 && !rd(input, DMV_HEADER_SIZE_0_1, header + DMV_HEADER_SIZE_0_1,
+                                                   DMV_HEADER_SIZE - DMV_HEADER_SIZE_0_1))))
         ret = -EIO;
     if (ret == 0 && (v = Dmod_Malloc(sizeof(*v))) == NULL)
         ret = -ENOMEM;

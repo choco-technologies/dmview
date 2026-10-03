@@ -1,6 +1,7 @@
 # dmview Binary Format (`.dmv`)
 
-Status: **version 0.1** - follows the [assembly draft](assembly.md).
+Status: **version 0.2** - follows the [assembly draft](assembly.md). Version
+0.2 added gradients.
 
 A `.dmv` file is what `libtodmv` produces from `.dmvs` assembly and what
 `libdmview` executes. Everything is **little-endian**; every table starts at a
@@ -8,7 +9,7 @@ A `.dmv` file is what `libtodmv` produces from `.dmvs` assembly and what
 
 ```
 ┌──────────────┐ 0
-│ header       │ 80 bytes
+│ header       │ 96 bytes (80 in version 0.1)
 ├──────────────┤
 │ code         │ instructions, 4-byte words
 ├──────────────┤
@@ -19,6 +20,8 @@ A `.dmv` file is what `libtodmv` produces from `.dmvs` assembly and what
 │ boxes        │  8 bytes each
 │ items        │  8 bytes each
 │ symbols      │  4 bytes each
+│ gradients    │ 16 bytes each
+│ stops        │  8 bytes each
 └──────────────┘ file_size
 ```
 
@@ -31,7 +34,7 @@ reader finds them only through the header, never by position.
 |--------|------|-------|---------|
 | 0 | 4 | magic | `'D' 'M' 'V' 0` |
 | 4 | 2 | version_major | 0 - a reader rejects any other |
-| 6 | 2 | version_minor | 1 - a reader accepts this or lower |
+| 6 | 2 | version_minor | 2 - a reader accepts this or lower |
 | 8 | 4 | file_size | Size of the whole file |
 | 12 | 2 | width | `.size` width, 0 = not given |
 | 14 | 2 | height | `.size` height, 0 = not given |
@@ -46,9 +49,16 @@ reader finds them only through the header, never by position.
 | 56 | 8 | boxes | Table: offset, count of boxes |
 | 64 | 8 | items | Table: offset, count of view-level items |
 | 72 | 8 | symbols | Table: offset, count of symbols |
+| 80 | 8 | gradients | Table: offset, count of gradients - version 0.2 |
+| 88 | 8 | stops | Table: offset, count of gradient stops - version 0.2 |
 
 Each table is `{ uint32 offset; uint32 count; }`, the offset counted from the
 start of the file. An empty table has count 0.
+
+A version 0.1 header ends at 80, without the gradient tables. `libtodmv`
+always writes the 96-byte header, but marks a view that uses no gradient as
+version 0.1: a reader that knows only 0.1 runs it, it finds every table
+through the header and never looks at bytes 80 ... 95.
 
 ## Code
 
@@ -62,7 +72,7 @@ is limited to 65535 words (256 KiB).
 |--------------|------|-------|
 | 16-bit value (x, y, w, h, r, t, order) | 2 | int16, or a variable index (varmask) |
 | 32-bit value (n) | 4 | int32, or a variable index (varmask); `SET` into a string variable: a string index |
-| color | 4 | 0xAARRGGBB, or a variable index (varmask) |
+| color | 4 | 0xAARRGGBB, or a variable index (varmask), or a gradient index (flags bit 7, `DMV_PAINT_GRADIENT`) |
 | string | 2 | String index, or a string variable index (varmask) |
 | variable (destination) | 2 | Index of a declared variable |
 | label | 2 | Code word offset |
@@ -111,6 +121,21 @@ variables, fonts, boxes, labels and dmenv bindings.
 | 2 | 2 | label | Handler code word offset, 0xFFFF for `.navkeys` |
 | 4 | 4 | value | `.timer`: milliseconds, `.key` / `.navkeys`: button index |
 
+**Gradient** (16 bytes)
+
+| Offset | Size | Field | Meaning |
+|--------|------|-------|---------|
+| 0 | 2 | name | String index |
+| 2 | 1 | kind | 0 linear, 1 radial |
+| 3 | 1 | count | Stops, 2 ... 16 |
+| 4 | 2 | first | Index of its first stop in the stop table |
+| 6 | 8 | param | 4 x int16 - linear: angle (0 ... 359 degrees, 0 = up, 90 = right), 0, 0, 0; radial: cx, cy, rx, ry in percent of the shape's width and height, rx and ry > 0 |
+| 14 | 2 | reserved | 0 |
+
+**Stop** (8 bytes): color (0xAARRGGBB, 4 bytes), position (0 ... 1000, in
+1/1000 of the gradient, 2 bytes), reserved (0, 2 bytes). The stops of a
+gradient are consecutive, in order.
+
 **Symbol** (4 bytes): name (string index, local labels with their leading
 `.`), offset (code word offset). Symbols are in the order the labels were
 defined; they are needed only for disassembly and debugging.
@@ -127,8 +152,12 @@ file satisfies:
 - every instruction has a known opcode and exactly its opcode's size, the
   last one ends at the end of the code;
 - varmask bits only for value operands, flags only with the instruction's
-  own flag names, every index (string, variable, font, box, event) in range,
-  and variable types matching the instruction;
+  own flag names (and `DMV_PAINT_GRADIENT` on a drawing instruction with a
+  color), every index (string, variable, font, gradient, box, event) in
+  range, and variable types matching the instruction; a gradient operand is
+  never a variable;
+- every gradient's kind and parameters valid, its stops inside the stop
+  table, positions 0 ... 1000 and not decreasing;
 - every code offset (labels, `entry`, items, boxes, symbols) points at the
   start of an instruction;
 - `BOX` / `END` nest, match the box table (begin, end, parent), and `ON`

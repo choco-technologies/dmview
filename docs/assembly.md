@@ -252,6 +252,7 @@ label:                              ; global label
 | font | Name declared with `.font` | `body` |
 | flags | Names joined with `\|` | `CENTER\|MIDDLE` |
 | constant | Name declared with `.define`, usable wherever a number or color is | `BTN_H`, `BLUE` |
+| gradient | Name declared with `.gradient`, usable wherever a drawing instruction takes a color | `sky` |
 
 Where an operand is marked **value** below, it can be an immediate or a
 variable - `RECT 0, 0, $width, 8, #3D85F5` takes its width from `$width`.
@@ -266,6 +267,8 @@ variable - `RECT 0, 0, $width, 8, #3D85F5` takes its width from `$width`.
 | `.var $name, int, init [, env:NAME]` | 32-bit signed integer variable |
 | `.var $name, str[N], "init" [, env:NAME]` | String variable holding up to N bytes |
 | `.font name, "spec"` | Font used by `TEXT`; `spec` is resolved by `libdmview` (e.g. `"sans-16"`) |
+| `.gradient name, LINEAR [, angle], stop, stop [, ...]` | Linear gradient - see [Gradients](#gradients) |
+| `.gradient name, RADIAL [, cx, cy, rx, ry], stop, stop [, ...]` | Radial gradient - see [Gradients](#gradients) |
 | `.define NAME, value` | Assembly-time constant |
 | `.include "file.dmvs"` | Insert another assembly file |
 | `.init label` | Handler run once when the view is shown, before the first draw |
@@ -359,6 +362,59 @@ Colors with alpha below 0xFF are blended.
 `TEXT` alignment flags: horizontal `LEFT` (default), `CENTER`, `RIGHT`;
 vertical `TOP` (default), `MIDDLE`, `BOTTOM`; `WRAP` breaks lines at spaces
 to fit `w`. Text that does not fit is clipped.
+
+Every `color` operand of the drawing instructions can be a gradient instead
+- `RRECT 0, 0, $box.w, $box.h, 8, sky`.
+
+### Gradients
+
+A gradient is declared once and painted by name wherever a drawing
+instruction takes a color. Its geometry is relative to the shape it paints,
+so one gradient fits buttons of every size:
+
+| Instruction | The gradient spans |
+|-------------|--------------------|
+| `FILL` | The whole current box (also when only a part of it is redrawn) |
+| `RECT`, `RRECT`, `FRAME`, `RFRAME`, `TEXT` | Its `x, y, w, h` |
+| `CIRCLE`, `RING` | The square around the circle |
+| `LINE` | The line's bounding box, its thickness included |
+
+```
+.gradient sky,  LINEAR, #3D85F5, #2A6FDB            ; top to bottom
+.gradient bar,  LINEAR, 90, #FF5F6D, #FFC371 70     ; left to right
+.gradient glow, RADIAL, #FFFFFF, #00FFFFFF          ; white center fading out
+.gradient spot, RADIAL, 30, 30, 80, 80, #FFFFFF 0, #3D85F5 40, #101820
+
+        FILL    sky
+        RRECT   0, 0, $box.w, $box.h, 8, bar
+        CIRCLE  40, 40, 24, glow
+        TEXT    0, 0, 200, 32, "Title", title, bar, CENTER|MIDDLE
+```
+
+- **`LINEAR [, angle]`** - the angle in degrees points where the gradient goes,
+  as in CSS: 0 up, 90 right, 180 down (default), 270 left, anything between.
+  The gradient line is as long as the shape's corners need (`|w sin| +
+  |h cos|`), so both end colors reach the corners.
+- **`RADIAL [, cx, cy, rx, ry]`** - an ellipse around `cx, cy` with radii
+  `rx, ry`, in percent of the shape's width and height (default `50, 50, 50,
+  50`: the ellipse inscribed in the shape; `50, 50, 71, 71` reaches its
+  corners). Outside the ellipse the last color.
+- **Stops** - 2 to 16 of `color [position]`, the position in percent
+  (`50`, `50%`, `33.3`), not decreasing. Left-out positions follow CSS: the
+  first stop at 0, the last at 100, the others evenly between their
+  neighbors. Two stops at the same position make a hard edge. Before the
+  first stop the first color, after the last one the last color.
+- Colors with alpha are blended over what is beneath, per pixel; a gradient
+  of opaque colors only is written without blending.
+- A gradient is a constant: an operand names it, never a variable. Choose
+  between gradients with a jump, as `button_bg` in the example does with
+  colors.
+
+`libdmview` turns a gradient into a palette of 256 colors, in the screen's
+pixel format, when it is first drawn. Drawing then costs one addition and a
+palette lookup per pixel for a linear gradient - a vertical one is a single
+color per line, as fast as a plain color - and a table lookup for the
+square root of a radial one.
 
 ### Variables
 
@@ -577,7 +633,7 @@ Little-endian. Every instruction is a 4-byte header followed by its operands:
 | 0 | opcode | Instruction (tables above) |
 | 1 | size | Total size of the instruction in bytes, a multiple of 4 |
 | 2 | varmask | Bit n set: operand n holds a variable index instead of an immediate |
-| 3 | flags | Instruction flags (`BOX` flags, `TEXT` alignment, ...) |
+| 3 | flags | Instruction flags (`BOX` flags, `TEXT` alignment, ...); bit 7 on a drawing instruction: its color operand is a gradient index |
 
 - Operands follow in the order of the assembly operands: 16-bit values
   (coordinates, sizes, variable/string/font/image/box indices, labels) take 2
@@ -588,7 +644,7 @@ Little-endian. Every instruction is a 4-byte header followed by its operands:
   built-in variables use indices 0xFF00-0xFFFF.
 - Labels are code offsets in 4-byte words (code up to 256 KiB).
 - `size` lets an interpreter skip an instruction it does not know.
-- Strings, fonts, variables, boxes and view-level handlers live in
+- Strings, fonts, gradients, variables, boxes and view-level handlers live in
   tables next to the code; their layout is described in
   [binary-format.md](binary-format.md).
 

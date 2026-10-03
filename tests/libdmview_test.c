@@ -169,6 +169,149 @@ DMOD_TEST_STEP(libdmview_draws_text)
     DMOD_TEST_EXPECT_EQ(px(8, 16), 0xFF000000u);
 }
 
+/* ---- Gradients ---- */
+
+/* Every channel of a and b at most `tolerance` apart */
+static bool near(uint32_t a, uint32_t b, uint32_t tolerance)
+{
+    for (uint32_t shift = 0; shift < 32u; shift += 8u)
+    {
+        int32_t d = (int32_t)((a >> shift) & 0xFFu) - (int32_t)((b >> shift) & 0xFFu);
+        if (d > (int32_t)tolerance || d < -(int32_t)tolerance)
+        {
+            Dmod_Printf("    0x%08X is not near 0x%08X\n", (unsigned)a, (unsigned)b);
+            return false;
+        }
+    }
+    return true;
+}
+
+static uint16_t rgb565(uint32_t c)
+{
+    return (uint16_t)(((c >> 8) & 0xF800u) | ((c >> 5) & 0x07E0u) | ((c >> 3) & 0x001Fu));
+}
+
+DMOD_TEST_STEP(libdmview_draws_gradients)
+{
+    libdmview_rect_t changed;
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("gradients.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+
+    /* Linear, down: one color per line, black to white over the 32 lines */
+    DMOD_TEST_EXPECT_TRUE(near(px(0, 0), 0xFF000000u, 8));
+    DMOD_TEST_EXPECT_TRUE(near(px(0, 16), 0xFF808080u, 8));
+    DMOD_TEST_EXPECT_TRUE(near(px(15, 31), 0xFFFFFFFFu, 8));
+    DMOD_TEST_EXPECT_EQ(px(0, 10), px(15, 10));
+    DMOD_TEST_EXPECT_TRUE(px(0, 10) != px(0, 11));
+
+    /* Linear, right: red to blue, one color per column */
+    DMOD_TEST_EXPECT_TRUE(near(px(16, 4), 0xFFFF0000u, 8));
+    DMOD_TEST_EXPECT_TRUE(near(px(32, 4), 0xFF800080u, 8));
+    DMOD_TEST_EXPECT_TRUE(near(px(47, 4), 0xFF0000FFu, 8));
+    DMOD_TEST_EXPECT_EQ(px(20, 0), px(20, 7));
+
+    /* Radial: white in the middle of the circle, darker towards its edge,
+     * the same at the same distance */
+    DMOD_TEST_EXPECT_TRUE(near(px(56, 8), 0xFFFFFFFFu, 24));
+    DMOD_TEST_EXPECT_TRUE(near(px(49, 8), 0xFF000000u, 64));
+    DMOD_TEST_EXPECT_EQ(px(53, 8), px(56, 5));
+    DMOD_TEST_EXPECT_TRUE((px(52, 8) & 0xFFu) < (px(54, 8) & 0xFFu));
+
+    /* Transparent to white, blended over black */
+    DMOD_TEST_EXPECT_TRUE(near(px(16, 12), 0xFF000000u, 8));
+    DMOD_TEST_EXPECT_TRUE(near(px(32, 12), 0xFF808080u, 8));
+    DMOD_TEST_EXPECT_TRUE(near(px(47, 12), 0xFFFFFFFFu, 8));
+
+    /* A hard stop: red up to the middle, green after it */
+    DMOD_TEST_EXPECT_EQ(px(31, 20), 0xFFFF0000u);
+    DMOD_TEST_EXPECT_EQ(px(32, 20), 0xFF00FF00u);
+
+    /* FILL spans its box: black at the panel's top, white at its bottom */
+    DMOD_TEST_EXPECT_TRUE(near(px(20, 24), 0xFF000000u, 8));
+    DMOD_TEST_EXPECT_TRUE(near(px(20, 47), 0xFFFFFFFFu, 8));
+
+    /* Redrawing the transparent @mark redraws the panel beneath it, clipped
+     * to the mark - the gradient still spans the whole panel */
+    uint32_t before = px(30, 38);
+    DMOD_TEST_EXPECT_EQ(libdmview_set_int(g_view, "mark", 1), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, &changed), 1);
+    DMOD_TEST_EXPECT_TRUE(rect_is(&changed, 24, 32, 8, 8));
+    DMOD_TEST_EXPECT_EQ(px(24, 32), 0xFFFF00FFu);
+    DMOD_TEST_EXPECT_EQ(px(30, 38), before);
+    DMOD_TEST_EXPECT_EQ(px(30, 38), px(60, 38));
+
+    /* RGB565: the opaque gradients are the same colors, converted */
+    DMOD_TEST_EXPECT_EQ(libdmview_set_int(g_view, "mark", 0), 0);
+    libdmview_invalidate(g_view);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    libdmview_invalidate(g_view);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s16, NULL), 1);
+    uint32_t differ = 0;
+    for (int y = 0; y < H; y++)
+    {
+        for (int x = 0; x < W; x++)
+        {
+            bool fade = x >= 16 && x < 48 && y >= 8 && y < 16;
+            if (!fade && px16(x, y) != rgb565(px(x, y)))
+                differ++;
+        }
+    }
+    DMOD_TEST_EXPECT_EQ(differ, 0u);
+    DMOD_TEST_EXPECT_EQ(px16(32, 12) & 0xF800u, 0x8000u);    /* Blended: half white */
+}
+
+static uint16_t rd16le(const uint8_t* p) { return (uint16_t)(p[0] | (p[1] << 8)); }
+static uint32_t rd32le(const uint8_t* p) { return (uint32_t)rd16le(p) | ((uint32_t)rd16le(p + 2) << 16); }
+
+static uint8_t g_view_bytes[4096];
+static uint32_t g_view_size;
+
+static int bytes_read(void* ctx, uint32_t offset, void* buffer, size_t size)
+{
+    (void)ctx;
+    if (offset + size > g_view_size)
+        return -EIO;
+    memcpy(buffer, g_view_bytes + offset, size);
+    return 0;
+}
+
+DMOD_TEST_STEP(libdmview_rejects_invalid_gradients)
+{
+    void* f = Dmod_FileOpen(FIXTURE("gradients.dmv"), "r");
+    DMOD_TEST_EXPECT_NOT_NULL(f);
+    if (f == NULL)
+        return;
+    g_view_size = (uint32_t)Dmod_FileRead(g_view_bytes, 1, sizeof(g_view_bytes), f);
+    Dmod_FileClose(f);
+
+    dmv_input_t in;
+    in.read = bytes_read;
+    in.ctx = NULL;
+    in.size = g_view_size;
+    DMOD_TEST_EXPECT_EQ(libdmview_validate(&in, NULL), DMV_VALID);
+    DMOD_TEST_EXPECT_EQ(rd16le(g_view_bytes + 6), 2);
+
+    /* RECT 0, 0, 16, 32, down: the second instruction, its gradient index at 12 */
+    uint8_t* code = g_view_bytes + rd32le(g_view_bytes + 24);
+    uint8_t* rect = code + code[1];
+    DMOD_TEST_EXPECT_TRUE(rect[0] == DMV_OP_RECT && rect[3] == DMV_PAINT_GRADIENT);
+    rect[12] = 9;                                           /* No gradient 9 */
+    DMOD_TEST_EXPECT_EQ(libdmview_validate(&in, NULL), DMV_ERR_OPERAND);
+    rect[12] = 0;
+    rect[2] = 0x10;                                         /* A gradient from a variable */
+    DMOD_TEST_EXPECT_EQ(libdmview_validate(&in, NULL), DMV_ERR_OPERAND);
+    rect[2] = 0;
+
+    /* A stop before the previous one */
+    uint8_t* stops = g_view_bytes + rd32le(g_view_bytes + 88);
+    stops[4] = 0xE8; stops[5] = 0x03;                       /* 1000, then 1000 - still in order */
+    DMOD_TEST_EXPECT_EQ(libdmview_validate(&in, NULL), DMV_VALID);
+    stops[12] = 0; stops[13] = 0;                           /* 1000, then 0 */
+    DMOD_TEST_EXPECT_EQ(libdmview_validate(&in, NULL), DMV_ERR_TABLE);
+}
+
 /* ---- Redrawing what changed, input ---- */
 
 DMOD_TEST_STEP(libdmview_redraws_only_what_changed)

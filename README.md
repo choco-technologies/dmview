@@ -115,7 +115,11 @@ Drawing is what a view does all the time, so:
   beneath it, clipped to its area;
 - drawing goes straight into the framebuffer, as horizontal spans: RGB565
   stores two pixels at a time, only colors with alpha below 0xFF are
-  blended, curves use an integer square root per line.
+  blended, curves use an integer square root per line;
+- a gradient becomes a 256-color palette in the screen's pixel format once:
+  a linear one then costs an addition and a lookup per pixel (a vertical
+  one is one color per line), a radial one takes its square root from a
+  table.
 
 ### What is implemented
 
@@ -124,7 +128,8 @@ every instruction except `IMAGE` and `RELOAD` (no images yet), one contact
 (`PRESS`, `DRAG`, `LONG`, `RELEASE`, `CLICK`), `.init`, `.timer`, `.key`,
 `env:` variables, `GOTO`, `SIGNAL`, `EXEC`, `SCROLLTO`. Text uses a built-in
 8x8 font (public domain font8x8), magnified by the font spec's size / 8
-(`"sans-16"`: 2x). Not yet: images, scrolling by dragging, focus, several
+(`"sans-16"`: 2x). Linear and radial gradients paint any shape and text
+([docs/assembly.md](docs/assembly.md#gradients)). Not yet: images, scrolling by dragging, focus, several
 contacts and gestures. Pixel formats: RGB565, ARGB8888.
 
 ## Building

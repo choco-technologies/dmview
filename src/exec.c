@@ -101,6 +101,20 @@ static inline const char* vstr(struct libdmview* v, const uint8_t* insn, unsigne
     return v->strs[index];
 }
 
+/* The paint of a drawing instruction's color operand: its color, or the
+ * gradient (DMV_PAINT_GRADIENT) placed on the shape's rectangle x, y, w, h */
+static inline void paint_of(struct libdmview* v, const uint8_t* insn, unsigned i, unsigned off, paint_t* paint,
+                            int32_t x, int32_t y, int32_t w, int32_t h)
+{
+    if ((insn[3] & DMV_PAINT_GRADIENT) == 0)
+    {
+        paint->color = (uint32_t)v32(v, insn, i, off);
+        paint->grad = NULL;
+        return;
+    }
+    paint_gradient(paint, &v->gradients[rd32(insn + off)], v->stops, v->surface->format, x, y, w, h);
+}
+
 /* "Count: %d" with one %d / %x, "%%" for '%' (validated by the assembler) */
 static void format_into(char* out, size_t size, const char* format, int32_t n)
 {
@@ -231,6 +245,7 @@ static void run(struct libdmview* v, uint32_t pc, bool box_region)
     uint16_t calls[MAX_CALL_DEPTH];
     uint32_t call_depth = 0;
     const libdmview_surface_t* s = v->surface;
+    paint_t paint;
 
     for (uint32_t steps = MAX_STEPS; steps != 0; steps--)
     {
@@ -313,57 +328,94 @@ static void run(struct libdmview* v, uint32_t pc, bool box_region)
             /* ---- Drawing ---- */
             case DMV_OP_FILL:
                 if (draw)
-                    draw_rect(s, &f->clip, f->clip.x0, f->clip.y0, f->clip.x1 - f->clip.x0, f->clip.y1 - f->clip.y0,
-                              (uint32_t)v32(v, insn, 0, OPOFF(FILL, 0)));
+                {
+                    /* A gradient spans the whole box, whatever part of it is redrawn */
+                    rect_t area = (f->box != ROOT) ? v->boxes[f->box].bounds
+                                                   : (rect_t){ 0, 0, v->surface_w, v->surface_h };
+                    paint_of(v, insn, 0, OPOFF(FILL, 0), &paint, area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
+                    draw_rect(s, &f->clip, f->clip.x0, f->clip.y0, f->clip.x1 - f->clip.x0, f->clip.y1 - f->clip.y0, &paint);
+                }
                 break;
             case DMV_OP_RECT:
                 if (draw)
-                    draw_rect(s, &f->clip, f->ox + v16(v, insn, 0, OPOFF(RECT, 0)), f->oy + v16(v, insn, 1, OPOFF(RECT, 1)),
-                              v16(v, insn, 2, OPOFF(RECT, 2)), v16(v, insn, 3, OPOFF(RECT, 3)),
-                              (uint32_t)v32(v, insn, 4, OPOFF(RECT, 4)));
+                {
+                    int32_t x = f->ox + v16(v, insn, 0, OPOFF(RECT, 0)), y = f->oy + v16(v, insn, 1, OPOFF(RECT, 1));
+                    int32_t w = v16(v, insn, 2, OPOFF(RECT, 2)), h = v16(v, insn, 3, OPOFF(RECT, 3));
+                    paint_of(v, insn, 4, OPOFF(RECT, 4), &paint, x, y, w, h);
+                    draw_rect(s, &f->clip, x, y, w, h, &paint);
+                }
                 break;
             case DMV_OP_RRECT:
                 if (draw)
-                    draw_rrect(s, &f->clip, f->ox + v16(v, insn, 0, OPOFF(RRECT, 0)), f->oy + v16(v, insn, 1, OPOFF(RRECT, 1)),
-                               v16(v, insn, 2, OPOFF(RRECT, 2)), v16(v, insn, 3, OPOFF(RRECT, 3)),
-                               v16(v, insn, 4, OPOFF(RRECT, 4)), (uint32_t)v32(v, insn, 5, OPOFF(RRECT, 5)));
+                {
+                    int32_t x = f->ox + v16(v, insn, 0, OPOFF(RRECT, 0)), y = f->oy + v16(v, insn, 1, OPOFF(RRECT, 1));
+                    int32_t w = v16(v, insn, 2, OPOFF(RRECT, 2)), h = v16(v, insn, 3, OPOFF(RRECT, 3));
+                    int32_t r = v16(v, insn, 4, OPOFF(RRECT, 4));
+                    paint_of(v, insn, 5, OPOFF(RRECT, 5), &paint, x, y, w, h);
+                    draw_rrect(s, &f->clip, x, y, w, h, r, &paint);
+                }
                 break;
             case DMV_OP_FRAME:
                 if (draw)
-                    draw_frame(s, &f->clip, f->ox + v16(v, insn, 0, OPOFF(FRAME, 0)), f->oy + v16(v, insn, 1, OPOFF(FRAME, 1)),
-                               v16(v, insn, 2, OPOFF(FRAME, 2)), v16(v, insn, 3, OPOFF(FRAME, 3)),
-                               v16(v, insn, 4, OPOFF(FRAME, 4)), (uint32_t)v32(v, insn, 5, OPOFF(FRAME, 5)));
+                {
+                    int32_t x = f->ox + v16(v, insn, 0, OPOFF(FRAME, 0)), y = f->oy + v16(v, insn, 1, OPOFF(FRAME, 1));
+                    int32_t w = v16(v, insn, 2, OPOFF(FRAME, 2)), h = v16(v, insn, 3, OPOFF(FRAME, 3));
+                    int32_t t = v16(v, insn, 4, OPOFF(FRAME, 4));
+                    paint_of(v, insn, 5, OPOFF(FRAME, 5), &paint, x, y, w, h);
+                    draw_frame(s, &f->clip, x, y, w, h, t, &paint);
+                }
                 break;
             case DMV_OP_RFRAME:
                 if (draw)
-                    draw_rframe(s, &f->clip, f->ox + v16(v, insn, 0, OPOFF(RFRAME, 0)), f->oy + v16(v, insn, 1, OPOFF(RFRAME, 1)),
-                                v16(v, insn, 2, OPOFF(RFRAME, 2)), v16(v, insn, 3, OPOFF(RFRAME, 3)),
-                                v16(v, insn, 4, OPOFF(RFRAME, 4)), v16(v, insn, 5, OPOFF(RFRAME, 5)),
-                                (uint32_t)v32(v, insn, 6, OPOFF(RFRAME, 6)));
+                {
+                    int32_t x = f->ox + v16(v, insn, 0, OPOFF(RFRAME, 0)), y = f->oy + v16(v, insn, 1, OPOFF(RFRAME, 1));
+                    int32_t w = v16(v, insn, 2, OPOFF(RFRAME, 2)), h = v16(v, insn, 3, OPOFF(RFRAME, 3));
+                    int32_t r = v16(v, insn, 4, OPOFF(RFRAME, 4)), t = v16(v, insn, 5, OPOFF(RFRAME, 5));
+                    paint_of(v, insn, 6, OPOFF(RFRAME, 6), &paint, x, y, w, h);
+                    draw_rframe(s, &f->clip, x, y, w, h, r, t, &paint);
+                }
                 break;
             case DMV_OP_LINE:
                 if (draw)
-                    draw_line(s, &f->clip, f->ox + v16(v, insn, 0, OPOFF(LINE, 0)), f->oy + v16(v, insn, 1, OPOFF(LINE, 1)),
-                              f->ox + v16(v, insn, 2, OPOFF(LINE, 2)), f->oy + v16(v, insn, 3, OPOFF(LINE, 3)),
-                              v16(v, insn, 4, OPOFF(LINE, 4)), (uint32_t)v32(v, insn, 5, OPOFF(LINE, 5)));
+                {
+                    int32_t x0 = f->ox + v16(v, insn, 0, OPOFF(LINE, 0)), y0 = f->oy + v16(v, insn, 1, OPOFF(LINE, 1));
+                    int32_t x1 = f->ox + v16(v, insn, 2, OPOFF(LINE, 2)), y1 = f->oy + v16(v, insn, 3, OPOFF(LINE, 3));
+                    int32_t t = v16(v, insn, 4, OPOFF(LINE, 4));
+                    /* A gradient spans the line's bounding box, brush included */
+                    int32_t lx = ((x0 < x1) ? x0 : x1) - t / 2, ly = ((y0 < y1) ? y0 : y1) - t / 2;
+                    paint_of(v, insn, 5, OPOFF(LINE, 5), &paint, lx, ly,
+                             ((x0 < x1) ? x1 - x0 : x0 - x1) + t + 1, ((y0 < y1) ? y1 - y0 : y0 - y1) + t + 1);
+                    draw_line(s, &f->clip, x0, y0, x1, y1, t, &paint);
+                }
                 break;
             case DMV_OP_CIRCLE:
                 if (draw)
-                    draw_circle(s, &f->clip, f->ox + v16(v, insn, 0, OPOFF(CIRCLE, 0)), f->oy + v16(v, insn, 1, OPOFF(CIRCLE, 1)),
-                                v16(v, insn, 2, OPOFF(CIRCLE, 2)), (uint32_t)v32(v, insn, 3, OPOFF(CIRCLE, 3)));
+                {
+                    int32_t cx = f->ox + v16(v, insn, 0, OPOFF(CIRCLE, 0)), cy = f->oy + v16(v, insn, 1, OPOFF(CIRCLE, 1));
+                    int32_t r = v16(v, insn, 2, OPOFF(CIRCLE, 2));
+                    paint_of(v, insn, 3, OPOFF(CIRCLE, 3), &paint, cx - r, cy - r, 2 * r, 2 * r);
+                    draw_circle(s, &f->clip, cx, cy, r, &paint);
+                }
                 break;
             case DMV_OP_RING:
                 if (draw)
-                    draw_ring(s, &f->clip, f->ox + v16(v, insn, 0, OPOFF(RING, 0)), f->oy + v16(v, insn, 1, OPOFF(RING, 1)),
-                              v16(v, insn, 2, OPOFF(RING, 2)), v16(v, insn, 3, OPOFF(RING, 3)),
-                              (uint32_t)v32(v, insn, 4, OPOFF(RING, 4)));
+                {
+                    int32_t cx = f->ox + v16(v, insn, 0, OPOFF(RING, 0)), cy = f->oy + v16(v, insn, 1, OPOFF(RING, 1));
+                    int32_t r = v16(v, insn, 2, OPOFF(RING, 2)), t = v16(v, insn, 3, OPOFF(RING, 3));
+                    paint_of(v, insn, 4, OPOFF(RING, 4), &paint, cx - r, cy - r, 2 * r, 2 * r);
+                    draw_ring(s, &f->clip, cx, cy, r, t, &paint);
+                }
                 break;
             case DMV_OP_TEXT:
                 if (draw)
-                    draw_text(s, &f->clip, f->ox + v16(v, insn, 0, OPOFF(TEXT, 0)), f->oy + v16(v, insn, 1, OPOFF(TEXT, 1)),
-                              v16(v, insn, 2, OPOFF(TEXT, 2)), v16(v, insn, 3, OPOFF(TEXT, 3)),
-                              vstr(v, insn, 4, OPOFF(TEXT, 4)), v->font_scale[rd16(insn + OPOFF(TEXT, 5))],
-                              (uint32_t)v32(v, insn, 6, OPOFF(TEXT, 6)), insn[3]);
+                {
+                    int32_t x = f->ox + v16(v, insn, 0, OPOFF(TEXT, 0)), y = f->oy + v16(v, insn, 1, OPOFF(TEXT, 1));
+                    int32_t w = v16(v, insn, 2, OPOFF(TEXT, 2)), h = v16(v, insn, 3, OPOFF(TEXT, 3));
+                    const char* text = vstr(v, insn, 4, OPOFF(TEXT, 4));
+                    paint_of(v, insn, 6, OPOFF(TEXT, 6), &paint, x, y, w, h);
+                    draw_text(s, &f->clip, x, y, w, h, text, v->font_scale[rd16(insn + OPOFF(TEXT, 5))], &paint,
+                              insn[3] & DMV_ALIGN_FLAGS_MASK);
+                }
                 break;
             case DMV_OP_IMAGE:
                 /* Not supported yet - nothing is drawn in its place */

@@ -15,6 +15,7 @@ typedef struct
 {
     const dmv_input_t *in;
     dmv_header_t            h;
+    uint32_t                header_size;    /* DMV_HEADER_SIZE, or _0_1 for a version 0.1 view */
     uint8_t                *boundaries;     /* One bit per code word: an instruction starts there */
     uint8_t                *var_types;      /* Type of every variable */
     uint32_t                error_offset;
@@ -65,6 +66,11 @@ static void read_header(const uint8_t *p, dmv_header_t *h)
     read_section(p + 56, &h->boxes);
     read_section(p + 64, &h->items);
     read_section(p + 72, &h->symbols);
+    if (h->version_minor >= 2)
+    {
+        read_section(p + 80, &h->gradients);
+        read_section(p + 88, &h->stops);
+    }
 }
 
 static bool section_fits(const validator_t *v, const dmv_section_t *s, uint32_t entry_size)
@@ -72,7 +78,7 @@ static bool section_fits(const validator_t *v, const dmv_section_t *s, uint32_t 
     uint64_t end = (uint64_t)s->offset + (uint64_t)s->count * entry_size;
     if (s->count == 0)
         return s->offset <= v->in->size;
-    return (s->offset % 4U) == 0 && s->offset >= sizeof(dmv_header_t) && end <= v->in->size;
+    return (s->offset % 4U) == 0 && s->offset >= v->header_size && end <= v->in->size;
 }
 
 static bool string_valid(const validator_t *v, uint32_t index)
@@ -167,6 +173,58 @@ static dmv_status_t check_fonts(validator_t *v)
     return DMV_VALID;
 }
 
+static dmv_status_t check_gradients(validator_t *v)
+{
+    for (uint32_t i = 0; i < v->h.gradients.count; i++)
+    {
+        uint8_t p[sizeof(dmv_gradient_t)];
+        uint32_t at = v->h.gradients.offset + i * (uint32_t)sizeof(dmv_gradient_t);
+        if (!rd(v, at, p, sizeof(p)))
+            return fail(v, DMV_ERR_TABLE, at);
+
+        uint8_t kind = p[2], count = p[3];
+        uint16_t first = rd16(p + 4);
+        int16_t p0 = (int16_t)rd16(p + 6), p1 = (int16_t)rd16(p + 8), p2 = (int16_t)rd16(p + 10),
+                p3 = (int16_t)rd16(p + 12);
+        bool ok = string_valid(v, rd16(p)) && rd16(p + 14) == 0 &&
+                  count >= DMV_MIN_STOPS && count <= DMV_MAX_STOPS &&
+                  (uint32_t)first + count <= v->h.stops.count;
+        if (kind == DMV_GRADIENT_LINEAR)
+            ok = ok && p0 >= 0 && p0 < 360 && p1 == 0 && p2 == 0 && p3 == 0;
+        else
+            ok = ok && kind == DMV_GRADIENT_RADIAL && p2 > 0 && p3 > 0;
+
+        /* Its stops: in range and in order */
+        uint32_t previous = 0;
+        for (uint32_t k = 0; ok && k < count; k++)
+        {
+            uint8_t stop[sizeof(dmv_stop_t)];
+            uint32_t stop_at = v->h.stops.offset + (first + k) * (uint32_t)sizeof(dmv_stop_t);
+            if (!rd(v, stop_at, stop, sizeof(stop)))
+                return fail(v, DMV_ERR_TABLE, stop_at);
+            uint16_t position = rd16(stop + 4);
+            ok = position <= DMV_STOP_SCALE && position >= previous && rd16(stop + 6) == 0;
+            previous = position;
+        }
+        if (!ok)
+            return fail(v, DMV_ERR_TABLE, at);
+    }
+    return DMV_VALID;
+}
+
+/* Index of the color operand of a drawing instruction, -1 if it has none. */
+static int color_operand(const dmv_opcode_info_t *info)
+{
+    if (info->category != DMV_CATEGORY_DRAW)
+        return -1;
+    for (uint8_t i = 0; i < info->operand_count; i++)
+    {
+        if (info->operands[i] == DMV_OPERAND_COLOR)
+            return i;
+    }
+    return -1;
+}
+
 /* First pass: every instruction is known and has its opcode's size. */
 static dmv_status_t mark_instructions(validator_t *v)
 {
@@ -230,6 +288,8 @@ static bool operand_valid(const validator_t *v, uint8_t opcode, const dmv_opcode
 
     if (variable)
     {
+        if (kind == DMV_OPERAND_COLOR && (insn[3] & DMV_PAINT_GRADIENT) != 0)
+            return false;               /* A gradient is never a variable */
         int type = var_type(v, value);
         /* SET copies between variables of the same type */
         if (opcode == DMV_OP_SET && i == 1)
@@ -240,8 +300,9 @@ static bool operand_valid(const validator_t *v, uint8_t opcode, const dmv_opcode
     switch (kind)
     {
         case DMV_OPERAND_V16:
-        case DMV_OPERAND_COLOR:
             return true;
+        case DMV_OPERAND_COLOR:
+            return (insn[3] & DMV_PAINT_GRADIENT) == 0 || value < v->h.gradients.count;
         case DMV_OPERAND_V32:
             /* SET into a string variable: the immediate is a string index */
             if (opcode == DMV_OP_SET && i == 1 && var_type(v, rd16(insn + layout->offsets[0])) == DMV_VAR_STR)
@@ -299,7 +360,10 @@ static dmv_status_t check_code(validator_t *v)
             if ((insn[2] & (1U << i)) && (i >= info->operand_count || !is_value_kind(info->operands[i])))
                 return fail(v, DMV_ERR_OPERAND, at);
         }
-        if (!flags_valid(info->flags_kind, insn[3]))
+        uint8_t flags = insn[3];
+        if (color_operand(info) >= 0)
+            flags &= (uint8_t)~DMV_PAINT_GRADIENT;
+        if (!flags_valid(info->flags_kind, flags))
             return fail(v, DMV_ERR_OPERAND, at);
         for (uint8_t i = 0; i < info->operand_count; i++)
         {
@@ -405,7 +469,9 @@ static dmv_status_t check_header(validator_t *v)
         !section_fits(v, &h->fonts, sizeof(dmv_font_t)) || h->fonts.count > 0xFFFFu ||
         !section_fits(v, &h->boxes, sizeof(dmv_box_t)) || h->boxes.count >= DMV_NONE ||
         !section_fits(v, &h->items, sizeof(dmv_item_t)) ||
-        !section_fits(v, &h->symbols, sizeof(dmv_symbol_t)))
+        !section_fits(v, &h->symbols, sizeof(dmv_symbol_t)) ||
+        !section_fits(v, &h->gradients, sizeof(dmv_gradient_t)) || h->gradients.count > 0xFFFFu ||
+        !section_fits(v, &h->stops, sizeof(dmv_stop_t)) || h->stops.count > 0xFFFFu)
         return fail(v, DMV_ERR_SECTION, 24);
     if (!string_valid(v, h->name))
         return fail(v, DMV_ERR_TABLE, 16);
@@ -423,17 +489,20 @@ static void *alloc_zeroed(size_t size)
 dmv_status_t dmv_validate(const dmv_input_t *input, uint32_t *error_offset)
 {
     validator_t v;
-    uint8_t header[sizeof(dmv_header_t)];
+    uint8_t header[DMV_HEADER_SIZE];
     dmv_status_t status;
 
     memset(&v, 0, sizeof(v));
     v.in = input;
     if (input == NULL || input->read == NULL)
         status = DMV_ERR_ARGUMENT;
-    else if (!rd(&v, 0, header, sizeof(header)))
+    else if (!rd(&v, 0, header, DMV_HEADER_SIZE_0_1) ||
+             (rd16(header + 6) >= 2 && !rd(&v, DMV_HEADER_SIZE_0_1, header + DMV_HEADER_SIZE_0_1,
+                                           DMV_HEADER_SIZE - DMV_HEADER_SIZE_0_1)))
         status = fail(&v, DMV_ERR_HEADER, 0);
     else
     {
+        v.header_size = (rd16(header + 6) >= 2) ? DMV_HEADER_SIZE : DMV_HEADER_SIZE_0_1;
         read_header(header, &v.h);
         status = check_header(&v);
         if (status == DMV_VALID)
@@ -449,6 +518,8 @@ dmv_status_t dmv_validate(const dmv_input_t *input, uint32_t *error_offset)
             status = check_vars(&v);
         if (status == DMV_VALID)
             status = check_fonts(&v);
+        if (status == DMV_VALID)
+            status = check_gradients(&v);
         if (status == DMV_VALID)
             status = mark_instructions(&v);
         if (status == DMV_VALID && !is_boundary(&v, v.h.entry))
