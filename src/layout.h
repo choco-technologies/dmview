@@ -23,7 +23,8 @@ static inline uint8_t layout_offset(uint8_t op, unsigned i)
         case DMV_OP_JGT:
         case DMV_OP_JGE:      { static const uint8_t o[] = { 4, 8, 12 };                 return o[i]; }
         case DMV_OP_SCROLL:   { static const uint8_t o[] = { 4, 6 };                     return o[i]; }
-        case DMV_OP_FOCUS:    { static const uint8_t o[] = { 4 };                        return o[i]; }
+        case DMV_OP_FOCUS:
+        case DMV_OP_OPACITY:  { static const uint8_t o[] = { 4 };                        return o[i]; }
         case DMV_OP_FILL:     { static const uint8_t o[] = { 4 };                        return o[i]; }
         case DMV_OP_RECT:     { static const uint8_t o[] = { 4, 6, 8, 10, 12 };          return o[i]; }
         case DMV_OP_RRECT:

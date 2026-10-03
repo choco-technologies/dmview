@@ -129,7 +129,8 @@ Drawing is what a view does all the time, so:
 Runtime level 1 of [docs/assembly.md](docs/assembly.md#runtime-capabilities):
 every instruction except `IMAGE` and `RELOAD` (no images yet), one contact
 (`PRESS`, `DRAG`, `LONG`, `RELEASE`, `CLICK`), `.init`, `.timer`, `.key`,
-`env:` variables, `GOTO`, `SIGNAL`, `EXEC`, `SCROLLTO`. Text: antialiased,
+`env:` variables, `GOTO`, `SIGNAL`, `EXEC`, `SCROLLTO`, translucent boxes
+(`OPACITY`). Text: antialiased,
 proportional fonts from `.dmvf` files in `$DMVIEW_FONTS` - Roboto
 `sans-N` / `sans-bold-N` in [fonts/](fonts), more made with
 [tools/ttf2dmvf.py](tools/ttf2dmvf.py) - UTF-8; the built-in 8x8 font

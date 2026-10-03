@@ -137,10 +137,16 @@ static uint32_t pixel_index(const paint_t* paint, int32_t x, int32_t y)
 }
 
 /* The 0xAARRGGBB color of one pixel - for the pixels antialiased edges blend */
+/* A palette color in a box of opacity `alpha` */
+static inline uint32_t faded(uint32_t c, uint32_t alpha)
+{
+    return (alpha >= 255u) ? c : (c & 0x00FFFFFFu) | ((((c >> 24) * alpha + 127u) / 255u) << 24);
+}
+
 uint32_t gradient_color(const paint_t* paint, uint8_t format, int32_t x, int32_t y)
 {
     (void)format;
-    return paint->grad->lut[pixel_index(paint, x, y)];
+    return faded(paint->grad->lut[pixel_index(paint, x, y)], paint->alpha);
 }
 
 /*
@@ -173,10 +179,11 @@ static inline uint16_t dither565(uint32_t c, uint32_t t)
 }
 
 /* All pixels of the span in one palette color */
-static void solid(const libdmview_surface_t* s, const grad_t* g, int32_t y, int32_t x0, int32_t x1, uint32_t index)
+static void solid(const libdmview_surface_t* s, const paint_t* paint, int32_t y, int32_t x0, int32_t x1, uint32_t index)
 {
-    uint32_t c = g->lut[index];
-    if (!g->opaque || s->format != DMDRVI_GFX_PIXEL_FORMAT_RGB565)
+    const grad_t* g = paint->grad;
+    uint32_t c = faded(g->lut[index], paint->alpha);
+    if (!g->opaque || paint->alpha < 255u || s->format != DMDRVI_GFX_PIXEL_FORMAT_RGB565)
     {
         draw_span(s, y, x0, x1, c);
         return;
@@ -195,15 +202,17 @@ static void solid(const libdmview_surface_t* s, const grad_t* g, int32_t y, int3
 }
 
 /* n pixels from x0 in the palette colors idx[] */
-static void put(const libdmview_surface_t* s, const grad_t* g, int32_t y, int32_t x0, uint32_t n, const uint8_t* idx)
+static void put(const libdmview_surface_t* s, const paint_t* paint, int32_t y, int32_t x0, uint32_t n, const uint8_t* idx)
 {
     uint8_t* row = (uint8_t*)s->pixels + (uint32_t)y * s->stride;
-    const uint32_t* lut = g->lut;
+    const uint32_t* lut = paint->grad->lut;
+    uint32_t alpha = paint->alpha;
+    bool opaque = paint->grad->opaque && alpha >= 255u;
 
     if (s->format == DMDRVI_GFX_PIXEL_FORMAT_RGB565)
     {
         uint16_t* p = (uint16_t*)row + x0;
-        if (g->opaque)
+        if (opaque)
         {
             const uint8_t* t = bayer[y & 3];
             for (uint32_t i = 0; i < n; i++)
@@ -212,12 +221,12 @@ static void put(const libdmview_surface_t* s, const grad_t* g, int32_t y, int32_
         else
         {
             for (uint32_t i = 0; i < n; i++)
-                p[i] = blend565(p[i], lut[idx[i]]);
+                p[i] = blend565(p[i], faded(lut[idx[i]], alpha));
         }
         return;
     }
     uint32_t* p = (uint32_t*)row + x0;
-    if (g->opaque)
+    if (opaque)
     {
         for (uint32_t i = 0; i < n; i++)
             p[i] = lut[idx[i]];
@@ -225,7 +234,7 @@ static void put(const libdmview_surface_t* s, const grad_t* g, int32_t y, int32_
     else
     {
         for (uint32_t i = 0; i < n; i++)
-            p[i] = blend8888(p[i], lut[idx[i]]);
+            p[i] = blend8888(p[i], faded(lut[idx[i]], alpha));
     }
 }
 
@@ -244,7 +253,7 @@ void gradient_span(const libdmview_surface_t* s, const paint_t* paint, int32_t y
         int32_t t = start(paint->a0 + (int64_t)(x0 - paint->ox) * ax + (int64_t)(y - paint->oy) * paint->ay);
         if (ax == 0)
         {
-            solid(s, g, y, x0, x1, palette_index(t));      /* Vertical: one color per line */
+            solid(s, paint, y, x0, x1, palette_index(t));      /* Vertical: one color per line */
             return;
         }
         while (n > 0)
@@ -252,7 +261,7 @@ void gradient_span(const libdmview_surface_t* s, const paint_t* paint, int32_t y
             uint32_t m = (n < CHUNK) ? (uint32_t)n : CHUNK;
             for (uint32_t i = 0; i < m; i++, t += ax)
                 idx[i] = (uint8_t)palette_index(t);
-            put(s, g, y, x0, m, idx);
+            put(s, paint, y, x0, m, idx);
             x0 += (int32_t)m;
             n -= (int32_t)m;
         }
@@ -262,7 +271,7 @@ void gradient_span(const libdmview_surface_t* s, const paint_t* paint, int32_t y
     int32_t v = start(paint->b0 + (int64_t)(y - paint->oy) * paint->by);
     if (v <= -ONE || v >= ONE)
     {
-        solid(s, g, y, x0, x1, GRADIENT_STEPS - 1U);       /* The whole line is outside the ellipse */
+        solid(s, paint, y, x0, x1, GRADIENT_STEPS - 1U);       /* The whole line is outside the ellipse */
         return;
     }
     uint32_t vq = ((uint32_t)v * (uint32_t)v) >> 16;
@@ -276,7 +285,7 @@ void gradient_span(const libdmview_surface_t* s, const paint_t* paint, int32_t y
                              ? (((uint32_t)u * (uint32_t)u) >> 16) + vq : (uint32_t)ONE;
             idx[i] = (q >= (uint32_t)ONE) ? (uint8_t)(GRADIENT_STEPS - 1U) : sqrt_q16[q >> 6];
         }
-        put(s, g, y, x0, m, idx);
+        put(s, paint, y, x0, m, idx);
         x0 += (int32_t)m;
         n -= (int32_t)m;
     }

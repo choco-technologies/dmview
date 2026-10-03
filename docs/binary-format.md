@@ -1,7 +1,7 @@
 # dmview Binary Format (`.dmv`)
 
-Status: **version 0.2** - follows the [assembly draft](assembly.md). Version
-0.2 added gradients.
+Status: **version 0.3** - follows the [assembly draft](assembly.md). Version
+0.2 added gradients, 0.3 the `OPACITY` instruction.
 
 A `.dmv` file is what `libtodmv` produces from `.dmvs` assembly and what
 `libdmview` executes. Everything is **little-endian**; every table starts at a
@@ -34,7 +34,7 @@ reader finds them only through the header, never by position.
 |--------|------|-------|---------|
 | 0 | 4 | magic | `'D' 'M' 'V' 0` |
 | 4 | 2 | version_major | 0 - a reader rejects any other |
-| 6 | 2 | version_minor | 2 - a reader accepts this or lower |
+| 6 | 2 | version_minor | 3 - a reader accepts this or lower |
 | 8 | 4 | file_size | Size of the whole file |
 | 12 | 2 | width | `.size` width, 0 = not given |
 | 14 | 2 | height | `.size` height, 0 = not given |
@@ -56,9 +56,10 @@ Each table is `{ uint32 offset; uint32 count; }`, the offset counted from the
 start of the file. An empty table has count 0.
 
 A version 0.1 header ends at 80, without the gradient tables. `libtodmv`
-always writes the 96-byte header, but marks a view that uses no gradient as
-version 0.1: a reader that knows only 0.1 runs it, it finds every table
-through the header and never looks at bytes 80 ... 95.
+always writes the 96-byte header, but marks a view with the oldest version
+that has what it uses - 0.3 with `OPACITY`, 0.2 with gradients, else 0.1: a
+reader that knows only 0.1 runs a 0.1 view, it finds every table through
+the header and never looks at bytes 80 ... 95.
 
 ## Code
 
@@ -161,4 +162,5 @@ file satisfies:
 - every code offset (labels, `entry`, items, boxes, symbols) points at the
   start of an instruction;
 - `BOX` / `END` nest, match the box table (begin, end, parent), and `ON`
-  only appears inside a box.
+  only appears inside a box; `OPACITY` directly follows `BOX`, `SCROLL` or
+  `FOCUS`.

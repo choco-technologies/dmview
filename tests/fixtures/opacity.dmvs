@@ -1,0 +1,41 @@
+; Boxes with an opacity on a 64x48 surface - libdmview_test.c checks the
+; blended pixels
+.view   opacity
+.entry  draw
+
+.font   fixed, "builtin-16"
+.gradient ramp, LINEAR, 90, #000000, #FFFFFF
+
+.var    $fade, int, 128
+
+draw:
+        FILL    #000000
+        BOX     @half, 0, 0, 16, 16, OPAQUE     ; translucent - not opaque any more
+        OPACITY 128
+        FILL    #FFFFFF                         ; 50 % white over black
+        END
+
+        BOX     @var, 16, 0, 16, 16
+        OPACITY $fade
+        FILL    #FF0000
+        BOX     @inner, 4, 4, 8, 8              ; x 20..27, y 4..11
+        OPACITY 128                             ; times the 50 % around it: 25 %
+        FILL    #00FF00
+        END
+        END
+
+        BOX     @ramp, 32, 0, 32, 16
+        OPACITY 64
+        FILL    ramp                            ; black to white, at 25 %
+        END
+
+        BOX     @gone, 0, 16, 16, 16
+        OPACITY 0
+        FILL    #FFFFFF                         ; nothing drawn
+        END
+
+        BOX     @label, 16, 16, 48, 16
+        OPACITY 128
+        TEXT    0, 0, 48, 16, "WW", fixed, #FFFFFF, LEFT
+        END
+        RET
