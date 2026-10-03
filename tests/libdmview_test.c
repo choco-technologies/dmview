@@ -15,6 +15,10 @@
 #endif
 #define FIXTURE(name)   LIBDMVIEW_FIXTURES_DIR "/" name
 
+#ifndef LIBDMVIEW_FONTS_DIR
+#define LIBDMVIEW_FONTS_DIR "fonts"
+#endif
+
 #define W   64
 #define H   48
 
@@ -38,6 +42,7 @@ void dmod_test_setup(void)
     g_s16.stride = W * 2;
     g_s16.format = DMDRVI_GFX_PIXEL_FORMAT_RGB565;
     g_view = NULL;
+    Dmod_SetEnv("DMVIEW_FONTS", "", 1);         /* The built-in font unless a step sets it */
 }
 
 void dmod_test_teardown(void)
@@ -169,6 +174,184 @@ DMOD_TEST_STEP(libdmview_draws_text)
     DMOD_TEST_EXPECT_EQ(px(8, 16), 0xFF000000u);
 }
 
+/* ---- Fonts ---- */
+
+/* What the text in x0..x1 x y0..y1 lit: its width (to the rightmost lit
+ * column, from x0), and how many pixels are partly lit */
+static int32_t lit_width(int x0, int y0, int x1, int y1, uint32_t* partial)
+{
+    int32_t right = 0;
+    *partial = 0;
+    for (int y = y0; y < y1; y++)
+    {
+        for (int x = x0; x < x1; x++)
+        {
+            uint32_t g = px(x, y) & 0xFFu;
+            if (g != 0 && x - x0 + 1 > right)
+                right = x - x0 + 1;
+            *partial += (g != 0 && g != 0xFF) ? 1u : 0u;
+        }
+    }
+    return right;
+}
+
+DMOD_TEST_STEP(libdmview_draws_font_files)
+{
+    uint32_t partial;
+    Dmod_SetEnv("DMVIEW_FONTS", LIBDMVIEW_FONTS_DIR, 1);
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("fonts.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+
+    /* Roboto: antialiased, proportional - "ii" much narrower than "WW" */
+    int32_t ww = lit_width(0, 0, 32, 16, &partial);
+    DMOD_TEST_EXPECT_TRUE(partial > 20u);
+    int32_t ii = lit_width(0, 16, 32, 32, &partial);
+    DMOD_TEST_EXPECT_TRUE(ww > 20 && ww < 32);
+    DMOD_TEST_EXPECT_TRUE(ii > 0 && ii * 3 < ww);
+
+    /* Glyphs keep to their outlines: the ':' after a 't' shows */
+    DMOD_TEST_EXPECT_TRUE(lit_width(48, 0, 64, 16, &partial) >= lit_width(36, 0, 48, 16, &partial) + 2);
+
+    /* UTF-8 beyond ASCII: two glyphs of their own, not the '?' fallback */
+    int32_t pl = lit_width(32, 16, 64, 32, &partial);
+    DMOD_TEST_EXPECT_TRUE(pl > 10);
+    DMOD_TEST_EXPECT_TRUE(lit_width(32, 16, 48, 22, &partial) > 0);      /* The accents above them */
+
+    /* builtin-16, and a font without a file: the built-in font, 2x - fixed
+     * width (the second 'W' ends at its 7th column), nothing partly lit */
+    DMOD_TEST_EXPECT_EQ(lit_width(0, 32, 32, 48, &partial), 30);
+    DMOD_TEST_EXPECT_EQ(partial, 0u);
+    DMOD_TEST_EXPECT_EQ(lit_width(32, 32, 64, 48, &partial), 30);
+    DMOD_TEST_EXPECT_EQ(partial, 0u);
+
+    /* A second view shares the loaded font; it stays while one view uses it */
+    static uint32_t first[W * H];
+    memcpy(first, g_fb32, sizeof(first));
+    int status = 0;
+    libdmview_t second = libdmview_open(FIXTURE("fonts.dmv"), &status);
+    DMOD_TEST_EXPECT_NOT_NULL(second);
+    libdmview_close(g_view);
+    g_view = second;
+    memset(g_fb32, 0, sizeof(g_fb32));
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    uint32_t differ = 0;
+    for (int i = 0; i < W * H; i++)
+        differ += (first[i] != g_fb32[i]) ? 1u : 0u;
+    DMOD_TEST_EXPECT_EQ(differ, 0u);
+}
+
+DMOD_TEST_STEP(libdmview_falls_back_from_broken_fonts)
+{
+    uint32_t partial;
+    /* A "sans-16.dmvf" that is no font */
+    void* f = Dmod_FileOpen(FIXTURE("sans-16.dmvf"), "wb");
+    DMOD_TEST_EXPECT_NOT_NULL(f);
+    if (f == NULL)
+        return;
+    static const char junk[] = "DMVF this is not a font file at all, not even its header";
+    Dmod_FileWrite(junk, 1, sizeof(junk), f);
+    Dmod_FileClose(f);
+
+    Dmod_SetEnv("DMVIEW_FONTS", LIBDMVIEW_FIXTURES_DIR, 1);
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("fonts.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    DMOD_TEST_EXPECT_EQ(lit_width(0, 0, 32, 16, &partial), 30);     /* "WW", built-in, 2x */
+    DMOD_TEST_EXPECT_EQ(partial, 0u);
+}
+
+/* ---- Antialiasing ---- */
+
+static uint16_t rgb565(uint32_t c)
+{
+    return (uint16_t)(((c >> 8) & 0xF800u) | ((c >> 5) & 0x07E0u) | ((c >> 3) & 0x001Fu));
+}
+
+/* Coverage of white on black in x0..x1 x y0..y1, in pixels */
+static uint32_t white_area(int x0, int y0, int x1, int y1)
+{
+    uint32_t sum = 0;
+    for (int y = y0; y < y1; y++)
+    {
+        for (int x = x0; x < x1; x++)
+            sum += px(x, y) & 0xFFu;
+    }
+    return (sum + 127u) / 255u;
+}
+
+static bool between(uint32_t value, uint32_t low, uint32_t high)
+{
+    if (value >= low && value <= high)
+        return true;
+    Dmod_Printf("    %u is not in %u ... %u\n", (unsigned)value, (unsigned)low, (unsigned)high);
+    return false;
+}
+
+DMOD_TEST_STEP(libdmview_antialiases_curves)
+{
+    libdmview_rect_t changed;
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("aa.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+
+    /* Circle r 12: covers pi * 144 = 452.4 pixels, edges partly */
+    DMOD_TEST_EXPECT_TRUE(between(white_area(0, 0, 32, 32), 450, 455));
+    DMOD_TEST_EXPECT_EQ(px(16, 16), 0xFFFFFFFFu);
+    DMOD_TEST_EXPECT_EQ(px(2, 16), 0xFF000000u);
+    uint32_t partial = 0;
+    bool symmetric = true;
+    for (int y = 0; y < 32; y++)
+    {
+        for (int x = 0; x < 32; x++)
+        {
+            uint32_t g = px(x, y) & 0xFFu;
+            partial += (g != 0 && g != 0xFF) ? 1u : 0u;
+            symmetric = symmetric && px(x, y) == px(31 - x, y) && px(x, y) == px(x, 31 - y);
+        }
+    }
+    DMOD_TEST_EXPECT_TRUE(partial > 40u);
+    DMOD_TEST_EXPECT_TRUE(symmetric);
+
+    /* Ring r 12, 3 thick: pi * (144 - 81) = 197.9, the hole black */
+    DMOD_TEST_EXPECT_TRUE(between(white_area(32, 0, 64, 30), 195, 201));
+    DMOD_TEST_EXPECT_EQ(px(48, 16), 0xFF000000u);
+    DMOD_TEST_EXPECT_EQ(px(37, 16), 0xFFFFFFFFu);
+
+    /* Rounded rectangle: straight edges stay sharp, the corners are smooth;
+     * 24 * 14 - (4 - pi) * 36 = 305.1 */
+    DMOD_TEST_EXPECT_TRUE(between(white_area(0, 30, 32, 48), 303, 307));
+    DMOD_TEST_EXPECT_EQ(px(4, 39), 0xFFFFFFFFu);
+    DMOD_TEST_EXPECT_EQ(px(3, 39), 0xFF000000u);
+    DMOD_TEST_EXPECT_EQ(px(16, 32), 0xFFFFFFFFu);
+    DMOD_TEST_EXPECT_EQ(px(16, 31), 0xFF000000u);
+    uint32_t corner = px(5, 33) & 0xFFu;
+    DMOD_TEST_EXPECT_TRUE(corner != 0 && corner != 0xFF);
+
+    /* Redrawing the transparent box draws what is beneath first: its edges
+     * are blended once, as on the first draw */
+    static uint32_t first[W * H];
+    memcpy(first, g_fb32, sizeof(first));
+    DMOD_TEST_EXPECT_EQ(libdmview_set_int(g_view, "n", 1), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, &changed), 1);
+    DMOD_TEST_EXPECT_TRUE(rect_is(&changed, 34, 30, 28, 18));
+    uint32_t redrawn_differ = 0;
+    for (int i = 0; i < W * H; i++)
+        redrawn_differ += (first[i] != g_fb32[i]) ? 1u : 0u;
+    DMOD_TEST_EXPECT_EQ(redrawn_differ, 0u);
+
+    /* RGB565: the same edges */
+    libdmview_invalidate(g_view);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s16, NULL), 1);
+    uint32_t differ = 0;
+    for (int i = 0; i < W * H; i++)
+        differ += (g_fb16[i] != rgb565(g_fb32[i])) ? 1u : 0u;
+    DMOD_TEST_EXPECT_EQ(differ, 0u);
+}
+
 /* ---- Gradients ---- */
 
 /* Every channel of a and b at most `tolerance` apart */
@@ -184,11 +367,6 @@ static bool near(uint32_t a, uint32_t b, uint32_t tolerance)
         }
     }
     return true;
-}
-
-static uint16_t rgb565(uint32_t c)
-{
-    return (uint16_t)(((c >> 8) & 0xF800u) | ((c >> 5) & 0x07E0u) | ((c >> 3) & 0x001Fu));
 }
 
 DMOD_TEST_STEP(libdmview_draws_gradients)
@@ -248,17 +426,46 @@ DMOD_TEST_STEP(libdmview_draws_gradients)
     DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
     libdmview_invalidate(g_view);
     DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s16, NULL), 1);
+    /* Dithered: every pixel at most one RGB565 step from the color, and the
+     * 4x4 blocks average to it closer than cutting the bits off does */
     uint32_t differ = 0;
     for (int y = 0; y < H; y++)
     {
         for (int x = 0; x < W; x++)
         {
             bool fade = x >= 16 && x < 48 && y >= 8 && y < 16;
-            if (!fade && px16(x, y) != rgb565(px(x, y)))
+            uint16_t a = px16(x, y), b = rgb565(px(x, y));
+            int dr = (a >> 11) - (b >> 11), dg = ((a >> 5) & 0x3F) - ((b >> 5) & 0x3F), db = (a & 0x1F) - (b & 0x1F);
+            if (!fade && (dr < -1 || dr > 1 || dg < -1 || dg > 1 || db < -1 || db > 1))
                 differ++;
         }
     }
     DMOD_TEST_EXPECT_EQ(differ, 0u);
+
+    /* "down", black to white over 32 lines: the red of every 4x4 block */
+    uint32_t dithered_error = 0, cut_error = 0, varied_rows = 0;
+    for (int by = 0; by < 32; by += 4)
+    {
+        for (int bx = 0; bx < 16; bx += 4)
+        {
+            int32_t want = 0, dithered = 0, cut = 0;
+            for (int y = by; y < by + 4; y++)
+            {
+                for (int x = bx; x < bx + 4; x++)
+                {
+                    want += (int32_t)((px(x, y) >> 16) & 0xFFu);
+                    dithered += (int32_t)((px16(x, y) >> 11) * 255u / 31u);
+                    cut += (int32_t)((rgb565(px(x, y)) >> 11) * 255u / 31u);
+                }
+            }
+            dithered_error += (uint32_t)((dithered > want) ? dithered - want : want - dithered);
+            cut_error += (uint32_t)((cut > want) ? cut - want : want - cut);
+        }
+    }
+    for (int y = 0; y < 32; y++)
+        varied_rows += (px16(0, y) != px16(1, y) || px16(1, y) != px16(2, y)) ? 1u : 0u;
+    DMOD_TEST_EXPECT_TRUE(dithered_error * 3u < cut_error);
+    DMOD_TEST_EXPECT_TRUE(varied_rows > 8u);        /* A vertical gradient's lines are patterns */
     DMOD_TEST_EXPECT_EQ(px16(32, 12) & 0xF800u, 0x8000u);    /* Blended: half white */
 }
 

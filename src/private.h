@@ -95,16 +95,16 @@ static inline uint32_t blend8888(uint32_t d, uint32_t color)
 #define GRADIENT_STEPS      256u            /* Palette entries of a gradient */
 #define GRADIENT_NO_LUT     0xFFu           /* lut_format: palette not built yet */
 
-/** A gradient of the view, with its palette in the surface's pixel format. */
+/** A gradient of the view, with its palette. */
 typedef struct
 {
     uint8_t     kind;               /* DMV_GRADIENT_* */
     uint8_t     count;              /* Stops */
     uint16_t    first;              /* First stop in the view's stop table */
     int16_t     param[4];
-    bool        opaque;             /* Every stop opaque: `lut` holds pixels, else 0xAARRGGBB */
+    bool        opaque;             /* Every stop opaque: written without blending */
     uint8_t     lut_format;         /* Pixel format `lut` was built for, GRADIENT_NO_LUT */
-    uint32_t    lut[GRADIENT_STEPS];
+    uint32_t    lut[GRADIENT_STEPS];    /* 0xAARRGGBB */
 } grad_t;
 
 /**
@@ -123,6 +123,35 @@ typedef struct
     int32_t         a0, ax, ay;     /* At the middle of the pixel at ox, oy */
     int32_t         b0, by;
 } paint_t;
+
+/* ---- Fonts ---- */
+
+#define FONT_ASCII_FIRST    0x20u
+#define FONT_ASCII_COUNT    95u             /* U+0020 ... U+007E */
+#define FONT_NO_GLYPH       0xFFFFu
+
+/** A font file (.dmvf), loaded once and shared by every view that uses it. */
+typedef struct font_file
+{
+    struct font_file*   next;
+    char*               path;
+    uint32_t            refs;
+    uint8_t*            data;               /* The whole file */
+    const uint8_t*      glyphs;             /* dmvf_glyph_t records */
+    const uint8_t*      bitmaps;
+    uint32_t            count;
+    uint16_t            line_height;
+    int16_t             ascent;
+    uint16_t            fallback;           /* Glyph of '?', FONT_NO_GLYPH */
+    uint16_t            ascii[FONT_ASCII_COUNT];    /* Glyph of each ASCII character, FONT_NO_GLYPH */
+} font_file_t;
+
+/** A font of a view: a font file, or the built-in 8x8 font magnified. */
+typedef struct
+{
+    font_file_t*        file;               /* NULL: the built-in font */
+    uint8_t             scale;              /* Magnification of the built-in font */
+} font_t;
 
 /** A box at run time. Geometry is what its last draw found. */
 typedef struct
@@ -175,7 +204,7 @@ struct libdmview
     uint32_t        var_count;
     dmv_var_t*      vars;
     uint32_t        font_count;
-    uint8_t*        font_scale;     /* Built-in font magnification per font */
+    font_t*         fonts;
     uint32_t        box_count;
     rbox_t*         boxes;
     uint32_t        item_count;
@@ -227,6 +256,13 @@ dmv_status_t dmv_validate(const dmv_input_t* input, uint32_t* error_offset);
 int         claims_init(void);
 void        claims_deinit(void);
 
+/* fontfile.c */
+int             fonts_init(void);
+void            fonts_deinit(void);
+void            font_resolve(const char* spec, font_t* font);
+void            font_release(font_t* font);
+const uint8_t*  font_glyph(const font_file_t* f, uint32_t codepoint);   /* dmvf_glyph_t, NULL if none */
+
 /* view.c */
 const char* view_string(const struct libdmview* v, uint32_t index);
 void        view_set_int(struct libdmview* v, uint32_t index, int32_t value);
@@ -242,6 +278,7 @@ void        exec_draw(struct libdmview* v, rect_t* changed);
 bool        draw_supported(uint8_t format);
 void        draw_span(const libdmview_surface_t* s, int32_t y, int32_t x0, int32_t x1, uint32_t color);
 void        draw_pixels(const libdmview_surface_t* s, int32_t y, int32_t x0, int32_t x1, uint32_t pixel);
+void        draw_cover(const libdmview_surface_t* s, const paint_t* paint, int32_t x, int32_t y, uint32_t coverage);   /* 0 ... 255 */
 void        draw_rect(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h, const paint_t* paint);
 void        draw_frame(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h, int32_t t, const paint_t* paint);
 void        draw_rrect(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, const paint_t* paint);
@@ -254,10 +291,11 @@ void        draw_line(const libdmview_surface_t* s, const rect_t* clip, int32_t 
 void        paint_gradient(paint_t* paint, grad_t* grad, const dmv_stop_t* stops, uint8_t format,
                            int32_t x, int32_t y, int32_t w, int32_t h);
 void        gradient_span(const libdmview_surface_t* s, const paint_t* paint, int32_t y, int32_t x0, int32_t x1);
+uint32_t    gradient_color(const paint_t* paint, uint8_t format, int32_t x, int32_t y);
 
 /* font.c */
 uint8_t     font_scale_for(const char* spec);
 void        draw_text(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h,
-                      const char* text, uint8_t scale, const paint_t* paint, uint8_t align);
+                      const char* text, const font_t* font, const paint_t* paint, uint8_t align);
 
 #endif /* LIBDMVIEW_PRIVATE_H */

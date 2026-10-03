@@ -399,6 +399,53 @@ typedef struct
     uint16_t offset;        /**< Code word offset */
 } dmv_symbol_t;
 
+/* ---- Font files (.dmvf, dmview's docs/font-format.md) ---- */
+
+/** Font file magic: "DMVF". */
+#define DMVF_MAGIC_0             'D'
+#define DMVF_MAGIC_1             'M'
+#define DMVF_MAGIC_2             'V'
+#define DMVF_MAGIC_3             'F'
+
+#define DMVF_VERSION_MAJOR       0
+#define DMVF_VERSION_MINOR       1
+
+/** Bits per pixel of the glyph bitmaps (coverage 0 ... 15). */
+#define DMVF_BPP                 4u
+#define DMVF_COVERAGE_MAX        15u
+
+/** Font file header, at offset 0. */
+typedef struct
+{
+    uint8_t  magic[4];          /**< "DMVF" */
+    uint16_t version_major;     /**< DMVF_VERSION_MAJOR */
+    uint16_t version_minor;     /**< DMVF_VERSION_MINOR */
+    uint32_t file_size;         /**< Size of the whole file */
+    uint16_t size;              /**< Pixel size the font was made for (em) */
+    uint16_t line_height;       /**< Distance of two baselines */
+    int16_t  ascent;            /**< Baseline below the top of a line */
+    int16_t  descent;           /**< Below the baseline */
+    uint32_t glyph_count;
+    uint32_t glyphs;            /**< Offset of dmvf_glyph_t[glyph_count], by codepoint ascending */
+    uint32_t bitmaps;           /**< Offset of the bitmaps */
+} dmvf_header_t;
+
+/**
+ * Glyph record. Its bitmap: `height` rows of (width + 1) / 2 bytes, two
+ * pixels per byte, the left one in the low nibble - the coverage 0 ... 15.
+ */
+typedef struct
+{
+    uint32_t bitmap;            /**< Offset from the header's `bitmaps` */
+    uint16_t codepoint;         /**< Unicode (BMP) */
+    uint8_t  width;             /**< Bitmap size */
+    uint8_t  height;
+    int8_t   left;              /**< Bitmap's left edge right of the pen */
+    int8_t   top;               /**< Bitmap's top edge above the baseline */
+    uint8_t  advance;           /**< Pen movement after the glyph */
+    uint8_t  reserved;          /**< 0 */
+} dmvf_glyph_t;
+
 /** Result of dmv_validate(). */
 typedef enum
 {

@@ -3,7 +3,8 @@
 
 /*
  * Gradients. A gradient is turned into a palette of GRADIENT_STEPS colors
- * once - in the surface's pixel format, so drawing it only looks colors up.
+ * once, so drawing it only looks colors up; on RGB565 opaque gradients are
+ * dithered on the way to the pixels (dither565()).
  * Placed on a shape (paint_gradient()), every pixel's palette index is a
  * linear function of x and y for a linear gradient - one addition per pixel,
  * and a vertical gradient is a single color per span - and the square root
@@ -76,8 +77,6 @@ static void build_palette(grad_t* g, const dmv_stop_t* stops, uint8_t format)
             uint32_t from = st[k].position, span = st[k + 1U].position - from;
             c = lerp(st[k].color, st[k + 1U].color, ((pos - from) * 256U) / span);
         }
-        if (g->opaque && format == DMDRVI_GFX_PIXEL_FORMAT_RGB565)
-            c = to_rgb565(c);
         g->lut[i] = c;
     }
     g->lut_format = format;
@@ -124,13 +123,75 @@ void paint_gradient(paint_t* paint, grad_t* grad, const dmv_stop_t* stops, uint8
     paint->ay = 0;
 }
 
+/* Palette index of one pixel */
+static uint32_t pixel_index(const paint_t* paint, int32_t x, int32_t y)
+{
+    if (paint->grad->kind == DMV_GRADIENT_LINEAR)
+        return palette_index(start(paint->a0 + (int64_t)(x - paint->ox) * paint->ax + (int64_t)(y - paint->oy) * paint->ay));
+    int32_t u = start(paint->a0 + (int64_t)(x - paint->ox) * paint->ax);
+    int32_t v = start(paint->b0 + (int64_t)(y - paint->oy) * paint->by);
+    if (u <= -ONE || u >= ONE || v <= -ONE || v >= ONE)
+        return GRADIENT_STEPS - 1U;
+    uint32_t q = (((uint32_t)u * (uint32_t)u) >> 16) + (((uint32_t)v * (uint32_t)v) >> 16);
+    return (q >= (uint32_t)ONE) ? GRADIENT_STEPS - 1U : sqrt_q16[q >> 6];
+}
+
+/* The 0xAARRGGBB color of one pixel - for the pixels antialiased edges blend */
+uint32_t gradient_color(const paint_t* paint, uint8_t format, int32_t x, int32_t y)
+{
+    (void)format;
+    return paint->grad->lut[pixel_index(paint, x, y)];
+}
+
+/*
+ * RGB565 keeps 32 levels of red and blue, 64 of green: a gradient between
+ * two close colors would show as a few wide bands. Opaque gradients are
+ * written with ordered dithering instead - a threshold from a 4x4 Bayer
+ * matrix decides whether a pixel rounds up to the next level, so the bands
+ * become a fine pattern the eye averages into the colors between.
+ */
+static const uint8_t bayer[4][4] = {
+    {  0,  8,  2, 10 },
+    { 12,  4, 14,  6 },
+    {  3, 11,  1,  9 },
+    { 15,  7, 13,  5 },
+};
+
+/* Level of an 8-bit channel among `levels` - 1 steps, threshold (0 ... 254)
+ * below one step; levels 31 and 63 are 255/31 and 255/63 apart, not 8 and 4 */
+static inline uint32_t quantize(uint32_t v, uint32_t steps, uint32_t threshold)
+{
+    return (v * steps + threshold) / 255u;
+}
+
+static inline uint16_t dither565(uint32_t c, uint32_t t)
+{
+    uint32_t threshold = (t * 255u + 8u) / 16u;
+    return (uint16_t)((quantize((c >> 16) & 0xFFu, 31u, threshold) << 11) |
+                      (quantize((c >> 8) & 0xFFu, 63u, threshold) << 5) |
+                      quantize(c & 0xFFu, 31u, threshold));
+}
+
 /* All pixels of the span in one palette color */
 static void solid(const libdmview_surface_t* s, const grad_t* g, int32_t y, int32_t x0, int32_t x1, uint32_t index)
 {
-    if (g->opaque)
-        draw_pixels(s, y, x0, x1, g->lut[index]);
-    else
-        draw_span(s, y, x0, x1, g->lut[index]);
+    uint32_t c = g->lut[index];
+    if (!g->opaque || s->format != DMDRVI_GFX_PIXEL_FORMAT_RGB565)
+    {
+        draw_span(s, y, x0, x1, c);
+        return;
+    }
+    /* Dithered: the line's pattern repeats every 4 pixels */
+    const uint8_t* t = bayer[y & 3];
+    uint16_t pattern[4] = { dither565(c, t[0]), dither565(c, t[1]), dither565(c, t[2]), dither565(c, t[3]) };
+    if (pattern[0] == pattern[1] && pattern[1] == pattern[2] && pattern[2] == pattern[3])
+    {
+        draw_pixels(s, y, x0, x1, pattern[0]);
+        return;
+    }
+    uint16_t* p = (uint16_t*)((uint8_t*)s->pixels + (uint32_t)y * s->stride);
+    for (int32_t x = x0; x < x1; x++)
+        p[x] = pattern[x & 3];
 }
 
 /* n pixels from x0 in the palette colors idx[] */
@@ -144,8 +205,9 @@ static void put(const libdmview_surface_t* s, const grad_t* g, int32_t y, int32_
         uint16_t* p = (uint16_t*)row + x0;
         if (g->opaque)
         {
+            const uint8_t* t = bayer[y & 3];
             for (uint32_t i = 0; i < n; i++)
-                p[i] = (uint16_t)lut[idx[i]];
+                p[i] = dither565(lut[idx[i]], t[((uint32_t)x0 + i) & 3u]);
         }
         else
         {

@@ -24,7 +24,7 @@ DMOD_MODULE_VERSION=0.1
 DMOD_AUTHOR_NAME=Patryk Kubiak
 
 # The list of C sources
-DMOD_CSOURCES=src/view.c src/exec.c src/input.c src/draw.c src/gradient.c src/font.c src/claims.c src/validate.c
+DMOD_CSOURCES=src/view.c src/exec.c src/input.c src/draw.c src/gradient.c src/fontfile.c src/font.c src/claims.c src/validate.c
 
 # The list of C++ sources
 DMOD_CXXSOURCES=

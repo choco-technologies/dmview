@@ -115,20 +115,26 @@ Drawing is what a view does all the time, so:
   beneath it, clipped to its area;
 - drawing goes straight into the framebuffer, as horizontal spans: RGB565
   stores two pixels at a time, only colors with alpha below 0xFF are
-  blended, curves use an integer square root per line;
+  blended, curves use an integer square root per sub-row and are
+  antialiased - only the pixels their edges cross (one or two per side and
+  row) are blended by coverage, the inside stays plain spans;
 - a gradient becomes a 256-color palette in the screen's pixel format once:
   a linear one then costs an addition and a lookup per pixel (a vertical
-  one is one color per line), a radial one takes its square root from a
-  table.
+  one is one color - on RGB565 one 4-pixel dither pattern - per line), a
+  radial one takes its square root from a table; on RGB565 opaque gradients
+  are dithered, without bands.
 
 ### What is implemented
 
 Runtime level 1 of [docs/assembly.md](docs/assembly.md#runtime-capabilities):
 every instruction except `IMAGE` and `RELOAD` (no images yet), one contact
 (`PRESS`, `DRAG`, `LONG`, `RELEASE`, `CLICK`), `.init`, `.timer`, `.key`,
-`env:` variables, `GOTO`, `SIGNAL`, `EXEC`, `SCROLLTO`. Text uses a built-in
-8x8 font (public domain font8x8), magnified by the font spec's size / 8
-(`"sans-16"`: 2x). Linear and radial gradients paint any shape and text
+`env:` variables, `GOTO`, `SIGNAL`, `EXEC`, `SCROLLTO`. Text: antialiased,
+proportional fonts from `.dmvf` files in `$DMVIEW_FONTS` - Roboto
+`sans-N` / `sans-bold-N` in [fonts/](fonts), more made with
+[tools/ttf2dmvf.py](tools/ttf2dmvf.py) - UTF-8; the built-in 8x8 font
+(public domain font8x8, `"builtin-N"`) for consoles and when a font file is
+missing ([docs/assembly.md](docs/assembly.md#fonts)). Linear and radial gradients paint any shape and text
 ([docs/assembly.md](docs/assembly.md#gradients)). Not yet: images, scrolling by dragging, focus, several
 contacts and gestures. Pixel formats: RGB565, ARGB8888.
 
@@ -169,6 +175,8 @@ dmview/
 │   ├── libdmview.h         # libdmview API
 │   └── libdmview_types.h
 ├── src/                    # libdmview: loading, interpreter, rasterizer, font, input, claims
+├── fonts/                  # Roboto as .dmvf font files (Apache 2.0)
+├── tools/ttf2dmvf.py       # TrueType -> .dmvf
 ├── tests/                  # libdmview host tests and their views
 ├── apps/dmview/            # The display service
 ├── configs/                # dmview@.ini, dmview.rules
