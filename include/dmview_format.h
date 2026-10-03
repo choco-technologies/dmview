@@ -25,9 +25,10 @@
 
 /** Format version this header describes. */
 #define DMV_VERSION_MAJOR        0
-#define DMV_VERSION_MINOR        2
+#define DMV_VERSION_MINOR        3
 
-/** Header size: version 0.2 added the gradient tables at its end. */
+/** Header size: version 0.2 added the gradient tables at its end (0.3:
+ * OPACITY, no change to the header). */
 #define DMV_HEADER_SIZE          96u
 #define DMV_HEADER_SIZE_0_1      80u
 
@@ -53,6 +54,9 @@
 #define DMV_POINTER_CONTACT      (-1)
 #define DMV_FOCUS_CONTACT        (-2)
 
+/** OPACITY: 0 (invisible) ... DMV_OPACITY_MAX (opaque); values outside are clamped. */
+#define DMV_OPACITY_MAX          255
+
 /** Defaults of .longpress and .scrollslop. */
 #define DMV_DEFAULT_LONGPRESS_MS 600u
 #define DMV_DEFAULT_SCROLLSLOP   8u
@@ -75,6 +79,7 @@ typedef enum
     DMV_OP_JGE       = 0x0B,
     DMV_OP_SCROLL    = 0x0C,
     DMV_OP_FOCUS     = 0x0D,
+    DMV_OP_OPACITY   = 0x0E,
 
     /* Drawing */
     DMV_OP_FILL      = 0x10,
@@ -525,6 +530,7 @@ static const dmv_opcode_info_t dmv_opcode_table[DMV_OPCODE_TABLE_SIZE] = {
     OP(DMV_OP_JGE,      "JGE",      FLOW,   3, 0, F_NONE,  false, V32, V32, LABEL),
     OP(DMV_OP_SCROLL,   "SCROLL",   FLOW,   2, 0, F_SCR,   false, V16, V16),
     OP(DMV_OP_FOCUS,    "FOCUS",    FLOW,   1, 0, F_NONE,  false, V16),
+    OP(DMV_OP_OPACITY,  "OPACITY",  FLOW,   1, 0, F_NONE,  false, V16),
 
     OP(DMV_OP_FILL,     "FILL",     DRAW,   1, 0, F_NONE,  false, COLOR),
     OP(DMV_OP_RECT,     "RECT",     DRAW,   5, 0, F_NONE,  false, V16, V16, V16, V16, COLOR),

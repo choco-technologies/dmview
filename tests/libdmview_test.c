@@ -54,6 +54,26 @@ void dmod_test_teardown(void)
 static uint32_t px(int x, int y) { return g_fb32[y * W + x]; }
 static uint16_t px16(int x, int y) { return g_fb16[y * W + x]; }
 
+/* Every channel of a and b at most `tolerance` apart */
+static bool near(uint32_t a, uint32_t b, uint32_t tolerance)
+{
+    for (uint32_t shift = 0; shift < 32u; shift += 8u)
+    {
+        int32_t d = (int32_t)((a >> shift) & 0xFFu) - (int32_t)((b >> shift) & 0xFFu);
+        if (d > (int32_t)tolerance || d < -(int32_t)tolerance)
+        {
+            Dmod_Printf("    0x%08X is not near 0x%08X\n", (unsigned)a, (unsigned)b);
+            return false;
+        }
+    }
+    return true;
+}
+
+static uint16_t rgb565(uint32_t c)
+{
+    return (uint16_t)(((c >> 8) & 0xF800u) | ((c >> 5) & 0x07E0u) | ((c >> 3) & 0x001Fu));
+}
+
 static bool open_fixture(const char* path)
 {
     int status = 0;
@@ -174,6 +194,47 @@ DMOD_TEST_STEP(libdmview_draws_text)
     DMOD_TEST_EXPECT_EQ(px(8, 16), 0xFF000000u);
 }
 
+/* ---- Box opacity ---- */
+
+DMOD_TEST_STEP(libdmview_draws_translucent_boxes)
+{
+    libdmview_rect_t changed;
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("opacity.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+
+    DMOD_TEST_EXPECT_TRUE(near(px(8, 8), 0xFF808080u, 1));         /* 50 % white */
+    DMOD_TEST_EXPECT_TRUE(near(px(17, 1), 0xFF800000u, 1));        /* 50 % red ... */
+    DMOD_TEST_EXPECT_TRUE(near(px(24, 8), 0xFF604000u, 2));        /* ... 25 % green over it */
+    DMOD_TEST_EXPECT_TRUE(near(px(63, 8), 0xFF404040u, 3));        /* A gradient at 25 % */
+    DMOD_TEST_EXPECT_TRUE(near(px(33, 8), 0xFF000000u, 3));
+    DMOD_TEST_EXPECT_EQ(px(8, 24), 0xFF000000u);                    /* OPACITY 0 */
+    DMOD_TEST_EXPECT_TRUE(near(px(19, 16), 0xFF808080u, 1));       /* Text at 50 %: 'W' column 1 */
+
+    /* The opacity from a variable: the box is redrawn with what lies beneath
+     * it - again and again without adding up */
+    for (int i = 0; i < 3; i++)
+    {
+        DMOD_TEST_EXPECT_EQ(libdmview_set_int(g_view, "fade", 255), 0);
+        DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, &changed), 1);
+        DMOD_TEST_EXPECT_TRUE(changed.x <= 16 && changed.x + changed.w >= 32 && changed.y == 0 && changed.h >= 16);
+        DMOD_TEST_EXPECT_EQ(px(17, 1), 0xFFFF0000u);
+        DMOD_TEST_EXPECT_TRUE(near(px(24, 8), 0xFF7F8000u, 2));    /* 50 % green over red */
+        DMOD_TEST_EXPECT_EQ(libdmview_set_int(g_view, "fade", 128), 0);
+        DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, &changed), 1);
+        DMOD_TEST_EXPECT_TRUE(near(px(17, 1), 0xFF800000u, 1));
+        DMOD_TEST_EXPECT_TRUE(near(px(24, 8), 0xFF604000u, 2));
+    }
+    DMOD_TEST_EXPECT_TRUE(near(px(8, 8), 0xFF808080u, 1));         /* The neighbors untouched */
+
+    /* RGB565: a translucent gradient is blended, not dithered */
+    libdmview_invalidate(g_view);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s16, NULL), 1);
+    DMOD_TEST_EXPECT_EQ(px16(8, 8), rgb565(px(8, 8)));
+    DMOD_TEST_EXPECT_EQ(px16(40, 4), px16(40, 5));
+}
+
 /* ---- Fonts ---- */
 
 /* What the text in x0..x1 x y0..y1 lit: its width (to the rightmost lit
@@ -265,10 +326,6 @@ DMOD_TEST_STEP(libdmview_falls_back_from_broken_fonts)
 
 /* ---- Antialiasing ---- */
 
-static uint16_t rgb565(uint32_t c)
-{
-    return (uint16_t)(((c >> 8) & 0xF800u) | ((c >> 5) & 0x07E0u) | ((c >> 3) & 0x001Fu));
-}
 
 /* Coverage of white on black in x0..x1 x y0..y1, in pixels */
 static uint32_t white_area(int x0, int y0, int x1, int y1)
@@ -354,20 +411,6 @@ DMOD_TEST_STEP(libdmview_antialiases_curves)
 
 /* ---- Gradients ---- */
 
-/* Every channel of a and b at most `tolerance` apart */
-static bool near(uint32_t a, uint32_t b, uint32_t tolerance)
-{
-    for (uint32_t shift = 0; shift < 32u; shift += 8u)
-    {
-        int32_t d = (int32_t)((a >> shift) & 0xFFu) - (int32_t)((b >> shift) & 0xFFu);
-        if (d > (int32_t)tolerance || d < -(int32_t)tolerance)
-        {
-            Dmod_Printf("    0x%08X is not near 0x%08X\n", (unsigned)a, (unsigned)b);
-            return false;
-        }
-    }
-    return true;
-}
 
 DMOD_TEST_STEP(libdmview_draws_gradients)
 {
@@ -510,6 +553,14 @@ DMOD_TEST_STEP(libdmview_rejects_invalid_gradients)
     rect[2] = 0x10;                                         /* A gradient from a variable */
     DMOD_TEST_EXPECT_EQ(libdmview_validate(&in, NULL), DMV_ERR_OPERAND);
     rect[2] = 0;
+
+    /* OPACITY anywhere but right after BOX (SCROLL, FOCUS) */
+    uint8_t first[8];
+    memcpy(first, code, sizeof(first));
+    code[0] = DMV_OP_OPACITY;                               /* The first FILL (8 bytes, too) */
+    DMOD_TEST_EXPECT_EQ(libdmview_validate(&in, NULL), DMV_ERR_NESTING);
+    memcpy(code, first, sizeof(first));
+    DMOD_TEST_EXPECT_EQ(libdmview_validate(&in, NULL), DMV_VALID);
 
     /* A stop before the previous one */
     uint8_t* stops = g_view_bytes + rd32le(g_view_bytes + 88);

@@ -106,9 +106,14 @@ static inline const char* vstr(struct libdmview* v, const uint8_t* insn, unsigne
 static inline void paint_of(struct libdmview* v, const uint8_t* insn, unsigned i, unsigned off, paint_t* paint,
                             int32_t x, int32_t y, int32_t w, int32_t h)
 {
+    uint32_t alpha = v->frames[v->depth].alpha;
+    paint->alpha = alpha;
     if ((insn[3] & DMV_PAINT_GRADIENT) == 0)
     {
-        paint->color = (uint32_t)v32(v, insn, i, off);
+        uint32_t color = (uint32_t)v32(v, insn, i, off);
+        if (alpha < 255u)
+            color = (color & 0x00FFFFFFu) | ((((color >> 24) * alpha + 127u) / 255u) << 24);
+        paint->color = color;
         paint->grad = NULL;
         return;
     }
@@ -236,6 +241,7 @@ static void enter_box(struct libdmview* v, const uint8_t* insn)
     f->clip = rect_and(b->bounds, &parent->clip);
     f->view_clip = b->clip;
     f->box = index;
+    f->alpha = parent->alpha;
 }
 
 /* ---- The interpreter ---- */
@@ -252,7 +258,7 @@ static void run(struct libdmview* v, uint32_t pc, bool box_region)
         const uint8_t* insn = v->code + pc;
         uint32_t next = pc + insn[1];
         frame_t* f = &v->frames[v->depth];
-        bool draw = v->drawing && !rect_empty(&f->clip);
+        bool draw = v->drawing && !rect_empty(&f->clip) && f->alpha != 0;
 
         switch (insn[0])
         {
@@ -323,6 +329,15 @@ static void run(struct libdmview* v, uint32_t pc, bool box_region)
                 }
                 break;
             case DMV_OP_FOCUS:
+                break;
+            case DMV_OP_OPACITY:
+                if (v->drawing && v->depth > 0)
+                {
+                    /* The box's own opacity times the boxes' around it */
+                    int32_t a = v16(v, insn, 0, OPOFF(OPACITY, 0));
+                    a = (a < 0) ? 0 : (a > DMV_OPACITY_MAX) ? DMV_OPACITY_MAX : a;
+                    f->alpha = (v->frames[v->depth - 1].alpha * (uint32_t)a + 127u) / 255u;
+                }
                 break;
 
             /* ---- Drawing ---- */
@@ -554,6 +569,7 @@ static void redraw(struct libdmview* v, int32_t target, const rect_t* area)
         f->clip = rect_and(screen, area);
         f->view_clip = screen;
         f->box = ROOT;
+        f->alpha = 255u;
         run(v, v->entry * DMV_CODE_WORD, false);
         return;
     }
@@ -569,6 +585,7 @@ static void redraw(struct libdmview* v, int32_t target, const rect_t* area)
     f->clip = rect_and(rect_and(b->parent_clip, area), &screen);
     f->view_clip = b->parent_clip;
     f->box = b->parent;
+    f->alpha = 255u;                    /* A redraw starts at an opaque box - none around it is translucent */
     run(v, b->begin * DMV_CODE_WORD, true);
 }
 

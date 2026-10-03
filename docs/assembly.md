@@ -95,6 +95,31 @@ them, show what lies beneath. For a box that is not
 opaque, `libdmview` redraws its parents up to the nearest opaque one, clipped to
 the invalidated area. The view's root is always treated as opaque.
 
+#### Translucent boxes
+
+`OPACITY a` makes a box translucent, like CSS `opacity`:
+
+```
+        BOX     @toast, 40, 200, 400, 40
+        OPACITY $toast_alpha            ; fade in and out with a .timer
+        RRECT   0, 0, $box.w, $box.h, 8, #303A48
+        TEXT    0, 0, $box.w, $box.h, "Saved", body, #FFFFFF, CENTER|MIDDLE
+        END
+```
+
+- Everything drawn in the box - colors, gradients, text, its boxes - has its
+  alpha multiplied by `a / 255`. A box inside a translucent box multiplies
+  its own `OPACITY` with it.
+- What the box draws is blended with what lies beneath it shape by shape,
+  without an offscreen buffer: where shapes of the box overlap, the lower
+  one shows through the upper one (CSS composes the box first). For the
+  usual fades, disabled controls and overlays this looks the same and costs
+  no memory.
+- `a` can be a variable: changing it redraws the box. A translucent box and
+  everything in it is never opaque - a redraw starts beneath it, so the
+  blend never adds up. `OPAQUE` on such a box is ignored.
+- `OPACITY 0` draws nothing; the box is still there for input.
+
 ### Scrolling
 
 `SCROLL cw, ch [, flags]` right after `BOX` makes the box a viewport onto
@@ -339,6 +364,7 @@ value, 32-bit 0xAARRGGBB; **str** - string literal or string variable;
 | 0x0B | `JGE` | `a, b, label` | Jump if a >= b |
 | 0x0C | `SCROLL` | `cw, ch [, flags]` | Right after `BOX`: the box shows a scrollable area of cw x ch. Flags: `HORIZONTAL`, `VERTICAL` (default: both where the content is larger), `BAR` (draw a scroll indicator) |
 | 0x0D | `FOCUS` | `order` | Right after `BOX` (and `SCROLL`): the box is focusable, visited in increasing `order` |
+| 0x0E | `OPACITY` | `a` | Right after `BOX` (and `SCROLL`, `FOCUS`): the box and everything in it are drawn with opacity `a`, 0 (invisible) ... 255 (opaque) - see [Translucent boxes](#translucent-boxes) |
 
 A subroutine called inside a box draws in that box, so widgets are reusable:
 `CALL button_bg` draws whatever background the current box is.

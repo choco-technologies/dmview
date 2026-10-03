@@ -300,8 +300,29 @@ static int load_tables(struct libdmview* v, const dmv_input_t* in, const uint8_t
             b->flags |= BOXF_GEOMETRY_VAR;
         for (uint32_t e = 0; e < DMV_EVENT_COUNT; e++)
             b->handlers[e] = DMV_NONE;
+
+        /* OPACITY after BOX (SCROLL, FOCUS) - from a variable, or below opaque */
+        const uint8_t* next = insn + insn[1];
+        while (next[0] == DMV_OP_SCROLL || next[0] == DMV_OP_FOCUS)
+            next += next[1];
+        if (next[0] == DMV_OP_OPACITY && ((next[2] & 0x01u) != 0 || (int16_t)rd16(next + 4) < DMV_OPACITY_MAX))
+            b->flags |= BOXF_TRANSLUCENT;
     }
     Dmod_Free(raw);
+
+    /* What is drawn in a translucent box shows what lies beneath it: none of
+     * its boxes covers itself, a redraw starts beneath them */
+    for (uint32_t i = 0; i < v->box_count; i++)
+    {
+        for (int32_t p = (int32_t)i; p != ROOT; p = v->boxes[p].parent)
+        {
+            if ((v->boxes[p].flags & BOXF_TRANSLUCENT) != 0)
+            {
+                v->boxes[i].flags = (uint8_t)((v->boxes[i].flags | BOXF_TRANSLUCENT) & ~DMV_BOX_OPAQUE);
+                break;
+            }
+        }
+    }
 
     /* View-level items */
     if ((raw = read_block(in, items_at, v->item_count * sizeof(dmv_item_t), &status)) == NULL)

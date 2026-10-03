@@ -341,6 +341,7 @@ static dmv_status_t check_code(validator_t *v)
     uint16_t stack[MAX_BOX_DEPTH];
     uint32_t depth = 0, boxes_seen = 0;
     uint8_t insn[MAX_INSTRUCTION], box[sizeof(dmv_box_t)];
+    int previous = -1;                  /* Opcode of the instruction before */
 
     for (uint32_t pos = 0; pos < code_size; pos += insn[1])
     {
@@ -391,6 +392,12 @@ static dmv_status_t check_code(validator_t *v)
         {
             return fail(v, DMV_ERR_NESTING, at);
         }
+        else if (insn[0] == DMV_OP_OPACITY && previous != DMV_OP_BOX && previous != DMV_OP_SCROLL &&
+                 previous != DMV_OP_FOCUS)
+        {
+            return fail(v, DMV_ERR_NESTING, at);       /* Directly after BOX (SCROLL, FOCUS) */
+        }
+        previous = insn[0];
     }
     if (depth != 0 || boxes_seen != v->h.boxes.count)
         return fail(v, DMV_ERR_NESTING, v->h.boxes.offset);

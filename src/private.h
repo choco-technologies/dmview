@@ -14,6 +14,7 @@
 #define BOXF_VISIBLE        0x10u           /* Reached by the last draw */
 #define BOXF_DIRTY          0x20u           /* Has to be redrawn */
 #define BOXF_GEOMETRY_VAR   0x40u           /* Position or size comes from a variable */
+#define BOXF_TRANSLUCENT    0x80u           /* It or a box around it has an OPACITY: never opaque */
 
 /* Dependency bits of the built-in word (after the variable words) */
 #define DEP_PRESSED         0x01u
@@ -117,8 +118,9 @@ typedef struct
  */
 typedef struct
 {
-    uint32_t        color;          /* 0xAARRGGBB, when grad is NULL */
+    uint32_t        color;          /* 0xAARRGGBB, when grad is NULL - its alpha includes `alpha` */
     const grad_t*   grad;
+    uint32_t        alpha;          /* Opacity of the box drawn in, 0 ... 255 */
     int32_t         ox, oy;         /* Origin of the shape the gradient is placed on */
     int32_t         a0, ax, ay;     /* At the middle of the pixel at ox, oy */
     int32_t         b0, by;
@@ -178,6 +180,7 @@ typedef struct
     rect_t      clip;               /* Where drawing goes - also limited to the area being redrawn */
     rect_t      view_clip;          /* What of the box is on the screen at all */
     int32_t     box;                /* Box index, ROOT */
+    uint32_t    alpha;              /* Opacity: the boxes' OPACITY multiplied, 255 */
 } frame_t;
 
 typedef struct
