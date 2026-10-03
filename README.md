@@ -11,7 +11,8 @@ a text assembly (`.dmvs`) and its binary form (`.dmv`).
 A view is a small program - drawing instructions with fixed binary
 parameters, input handlers and variables - that `dmgui` executes directly,
 without parsing at run time. HTML/CSS (`dmhtml`, `dmcss`) compiles to
-`.dmvs`, `todmv` assembles it into `.dmv`.
+`.dmvs`, which the `libtodmv` library (or its command-line tool `todmv`)
+assembles into `.dmv`.
 
 The instruction set is described in [docs/assembly.md](docs/assembly.md)
 (draft).

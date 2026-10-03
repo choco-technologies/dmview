@@ -12,13 +12,28 @@ input handlers and the variables they work on. It exists in two forms:
 | Binary | `.dmv` | What `dmgui` executes - opcode + fixed binary parameters, no parsing at run time |
 
 Both forms map 1:1: every line of assembly is one binary instruction, and a
-`.dmv` disassembles back into equivalent assembly. `todmv` (a dmf module, so
-it runs on a PC and on the device) assembles `.dmvs` into `.dmv`; compiling
-HTML/CSS produces `.dmvs` first.
+`.dmv` disassembles back into equivalent assembly.
 
 ```
-.html + .css ──(dmhtml, dmcss)──► .dmvs ──(todmv)──► .dmv ──► dmgui ──► GFX / INPUT
+.html + .css ──(dmhtml, dmcss)──► .dmvs ──(libtodmv / todmv)──► .dmv ──► dmgui ──► GFX / INPUT
 ```
+
+### Modules
+
+Every step is its own dmf module, so it runs on a PC and on the device, and
+a firmware contains only what it needs:
+
+| Module | Kind | Role |
+|--------|------|------|
+| `dmview` | Library (headers) | The format itself: opcodes, operand layouts, file structures - shared by everything below |
+| `libtodmv` | Library | Assembler and disassembler as an API, in memory: `.dmvs` text -> `.dmv` binary with a list of errors (line, column, message), `.dmv` -> `.dmvs`, validation of a `.dmv` |
+| `todmv` | Application | Small command-line tool on top of `libtodmv`: `todmv view.dmvs -o view.dmv`, `todmv -d view.dmv` to disassemble |
+| `dmgui` | Library | Runtime: loads a `.dmv`, draws it through `DMDRVI_IOCTL_GFX_*`, feeds it `DMDRVI_IOCTL_INPUT_*` events |
+| `dmhtml`, `dmcss` | Libraries | HTML / CSS front end; produce `.dmvs` and pass it to `libtodmv` directly in memory, no intermediate file needed |
+
+Like `libsystemd` and `systemd` in dmsystem, `libtodmv` and `todmv` live in
+the dmview repository as two modules (`app/libtodmv`, `app/todmv`); a
+firmware that only shows prebuilt views needs neither.
 
 This document defines the assembly language and the instruction set. The
 exact binary layout (file header, section tables) is defined separately; the
@@ -381,8 +396,8 @@ each other; one box has at most one handler per event.
 | 0x82 | `SIGNAL` | `str` | Call the dmhaman handler with this name - lets a C module react to the UI |
 | 0x83 | `GOTO` | `str` | Show another view (path of a `.dmv`) after the current handler returns |
 | 0x84 | `SCROLLTO` | `@id, x, y` | Set the scroll offset of a scroll box (clamped to its content) |
-| 0x86 | `SETFOCUS` | `@id` | Move the focus to a focusable box |
 | 0x85 | `RELOAD` | `str` | Load the image file `str` again (it changed on disk) and redraw where it is shown |
+| 0x86 | `SETFOCUS` | `@id` | Move the focus to a focusable box |
 
 Opcodes 0xF0-0xFF are reserved for extensions (e.g. `dmjs` script calls).
 
@@ -580,7 +595,6 @@ Little-endian. Every instruction is a 4-byte header followed by its operands:
 - **Embedded resources**: should small icons optionally be embedded in the
   `.dmv` (a resource section), so a simple view is one file?
 - **Image scaling** (`object-fit: contain/cover`) in `IMAGE`.
-- **Multi-touch** gestures (pinch, two-finger scroll) beyond the first
-  contact.
-- **Keyboard / focus** navigation for devices with buttons only
-  (`DMDRVI_INPUT_TYPE_BUTTONS`): `:focus`, a focus order between boxes.
+- **Key codes**: `$ev.key` is a button index for now; a keyboard (text
+  input) needs key codes and characters - an addition to the dmdrvi input
+  state.
