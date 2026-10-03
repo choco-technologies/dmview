@@ -19,7 +19,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build dmview
+      - name: Build libdmview and dmview
         run: |
           mkdir -p build
           cd build
@@ -30,13 +30,13 @@ jobs:
         run: |
           echo "Checking for module files..."
           ls -lh build/dmf/
+          test -f build/dmf/libdmview.dmf
+          test -f build/dmf/libdmview_version.txt
           test -f build/dmf/dmview.dmf
-          test -f build/dmf/dmview_version.txt
-          test -f build/dmf/test_dmview.dmf
+          test -f build/dmf/test_libdmview.dmf
           echo "Module files present"
 
-      - name: Run tests with dmod_loader
+      - name: Run libdmview tests with dmod_loader
         run: |
-          export DMOD_DMF_DIR=$(pwd)/build/dmf
-          dmf-get install -d ${DMOD_DMF_DIR}/test_dmview-local.dmd -y
-          dmod_loader build/dmf/test_dmview.dmf
+          # Assembles tests/fixtures/*.dmvs with todmv, then runs the test
+          bash tests/run_tests.sh $(pwd)/build/dmf tests/fixtures $(pwd)/build/tests/fixtures

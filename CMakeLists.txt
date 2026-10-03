@@ -36,45 +36,49 @@ include(${DMOD_DIR}/paths.cmake)
 dmod_setup_external_module()
 
 # Name of the module
-set(DMOD_MODULE_NAME        dmview)
-
-# Author (should be string)
+# ======================================================================
+#               libdmview - executes dmview views (.dmv)
+# ======================================================================
+set(DMOD_MODULE_NAME        libdmview)
 set(DMOD_AUTHOR_NAME        "Patryk Kubiak")
-
-# Stack size for the module (should be integer)
-set(DMOD_STACK_SIZE         1024)
-
-# Path to the .dmr file - enables release package creation in build/packages/
-set(DMOD_DMR_PATH           ${CMAKE_CURRENT_SOURCE_DIR}/dmview.dmr)
-
-# List of MAL interfaces implemented by this module (leave empty if none)
+set(DMOD_STACK_SIZE         2048)
+set(DMOD_PRIORITY           0)
+set(DMOD_DMR_PATH           ${CMAKE_CURRENT_SOURCE_DIR}/libdmview.dmr)
 set(DMOD_MAL_IMPLS          )
-
-# List of DIF interfaces implemented by this module (leave empty if none)
 set(DMOD_DIF_IMPLS          )
 
-#
-#   dmod_add_library - create a library module
-#   it has the same signature as add_library
-#   and can be used in the same way after the creation
-#   (for example, to link libraries)
-#
 dmod_add_library(${DMOD_MODULE_NAME} ${DMOD_MODULE_VERSION}
-    # List of source files - can include C and C++ files
-    src/dmview.c
+    src/view.c
+    src/exec.c
+    src/input.c
+    src/draw.c
+    src/font.c
+    src/claims.c
+    src/validate.c
 )
 
 target_include_directories(${DMOD_MODULE_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 target_include_directories(${DMOD_MODULE_NAME}_if INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-# To depend on another module's headers, use:
-#   dmod_link_modules(${DMOD_MODULE_NAME}
-#       other_module@1.0
-#   )
+# dmdrvi:  surface pixel formats and the input state (headers only).
+# dmhaman: SIGNAL calls a dmhaman handler by name.
+# dmosi:   the display registry's lock, pids of claiming processes.
+dmod_link_modules(${DMOD_MODULE_NAME}
+    dmdrvi@>=2.4
+    dmhaman
+    dmosi
+)
+
 enable_testing()
 add_subdirectory(tests)
+
+# ======================================================================
+#               dmview - the display service
+# ======================================================================
+add_subdirectory(apps/dmview)

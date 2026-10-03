@@ -1,0 +1,63 @@
+; The example of docs/assembly.md
+.view   demo
+.size   480, 272
+.entry  draw
+
+.font   title, "sans-24"
+.font   body,  "sans-16"
+
+.define BLUE,      #3D85F5
+.define BLUE_DOWN, #2A6FDB
+
+.var    $count, int, 0
+.var    $level, int, 50
+.var    $ip,    str[16], "-", env:ETH0_IP
+.var    $label, str[24], ""
+.var    $fill,  int, 0
+
+draw:
+        FILL    #101820
+        TEXT    16, 12, 448, 32, "dmview demo", title, #FFFFFF, LEFT|MIDDLE
+
+        BOX     @counter, 16, 60, 160, 48
+        ON      CLICK, increment
+        CALL    button_bg
+        FORMAT  $label, "Count: %d", $count
+        TEXT    0, 0, $box.w, $box.h, $label, body, #FFFFFF, CENTER|MIDDLE
+        END
+
+        BOX     @slider, 16, 130, 300, 32
+        ON      PRESS, slide
+        ON      DRAG,  slide
+        RRECT   0, 12, $box.w, 8, 4, #303A48
+        SET     $fill, $level           ; temporary: fill = level * width / 100
+        MUL     $fill, $box.w
+        DIV     $fill, 100
+        RRECT   0, 12, $fill, 8, 4, BLUE
+        END
+
+        BOX     @ip, 16, 190, 448, 32, OPAQUE
+        FILL    #101820
+        TEXT    0, 0, $box.w, $box.h, $ip, body, #A0A8B0, LEFT|MIDDLE
+        END
+        RET
+
+; Background of a button-like box, darker while pressed
+button_bg:
+        JNE     $box.pressed, 0, .down
+        RRECT   0, 0, $box.w, $box.h, 8, BLUE
+        RET
+.down:
+        RRECT   0, 0, $box.w, $box.h, 8, BLUE_DOWN
+        RET
+
+increment:
+        ADD     $count, 1
+        RET
+
+slide:
+        SET     $level, $ev.x
+        MUL     $level, 100
+        DIV     $level, $box.w
+        CLAMP   $level, 0, 100
+        RET

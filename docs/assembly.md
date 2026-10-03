@@ -9,13 +9,13 @@ input handlers and the variables they work on. It exists in two forms:
 | Form | Extension | Used for |
 |------|-----------|----------|
 | Assembly | `.dmvs` | Text, written by hand or generated (`dmhtml` + `dmcss`), read in tests and by the disassembler |
-| Binary | `.dmv` | What `dmgui` executes - opcode + fixed binary parameters, no parsing at run time |
+| Binary | `.dmv` | What `libdmview` executes - opcode + fixed binary parameters, no parsing at run time |
 
 Both forms map 1:1: every line of assembly is one binary instruction, and a
 `.dmv` disassembles back into equivalent assembly.
 
 ```
-.html + .css ──(dmhtml, dmcss)──► .dmvs ──(libtodmv / todmv)──► .dmv ──► dmgui ──► GFX / INPUT
+.html + .css ──(dmhtml, dmcss)──► .dmvs ──(libtodmv / todmv)──► .dmv ──► libdmview ──► GFX / INPUT
 ```
 
 ### Modules
@@ -25,18 +25,22 @@ a firmware contains only what it needs:
 
 | Module | Kind | Role |
 |--------|------|------|
-| `dmview` | Library (headers) | The format itself: opcodes, operand layouts, file structures - shared by everything below |
-| `libtodmv` | Library | Assembler and disassembler as an API, in memory: `.dmvs` text -> `.dmv` binary with a list of errors (line, column, message), `.dmv` -> `.dmvs`, validation of a `.dmv` |
+| `dmview_format.h` | Header (in `libdmview`) | The format itself: opcodes, operand layouts, file structures - shared by everything below, header only |
+| `libtodmv` | Library | Assembler and disassembler as an API working on streams, never on whole files: `.dmvs` read line by line -> `.dmv` written as it is assembled, every error with line and column; `.dmv` -> `.dmvs`; validation of a `.dmv` |
 | `todmv` | Application | Small command-line tool on top of `libtodmv`: `todmv view.dmvs -o view.dmv`, `todmv -d view.dmv` to disassemble |
-| `dmgui` | Library | Runtime: loads a `.dmv`, draws it through `DMDRVI_IOCTL_GFX_*`, feeds it `DMDRVI_IOCTL_INPUT_*` events |
-| `dmhtml`, `dmcss` | Libraries | HTML / CSS front end; produce `.dmvs` and pass it to `libtodmv` directly in memory, no intermediate file needed |
+| `libdmview` | Library | Runtime: loads a `.dmv`, draws it into a framebuffer, turns `DMDRVI_IOCTL_INPUT_*` state into events; the display registry for application claims |
+| `dmview` | Service | One instance per display (`dmview@<name>`, started by a device rule): opens the display and its touch input, shows the right view |
+| `dmhtml`, `dmcss` | Libraries | HTML / CSS front end; produce `.dmvs` and hand it to `libtodmv` line by line through its source stream, no intermediate file needed |
 
-Like `libsystemd` and `systemd` in dmsystem, `libtodmv` and `todmv` live in
-the dmview repository as two modules (`app/libtodmv`, `app/todmv`); a
-firmware that only shows prebuilt views needs neither.
+Like `libsystemd` and `systemd` in dmsystem, the library and the program
+share a repository each: `libdmview` and the `dmview` service live here
+(`libdmview` at the root, `apps/dmview`), `libtodmv` and `todmv` in
+[todmv](https://github.com/choco-technologies/todmv); a firmware that only
+shows prebuilt views needs neither of the latter.
 
 This document defines the assembly language and the instruction set. The
-exact binary layout (file header, section tables) is defined separately; the
+exact binary layout (file header, section tables) is defined in
+[binary-format.md](binary-format.md); the
 [encoding summary](#binary-encoding-summary) below fixes what the instruction
 set depends on.
 
@@ -54,7 +58,7 @@ Inside a box:
 - the box's size is readable as `$box.w` / `$box.h`.
 
 Every box has an identifier (`@name`). The assembler collects all boxes into a
-box table, so `dmgui` knows each box's code, bounds and parent without running
+box table, so `libdmview` knows each box's code, bounds and parent without running
 the program first.
 
 ### Drawing is stateless
@@ -62,12 +66,12 @@ the program first.
 Drawing instructions carry all their parameters - position, size, color,
 font. There is no "current color" or "current font". The only state is the
 one `BOX` sets up (origin, clip, box variables). Because of that, **any box
-can be redrawn on its own**: `dmgui` re-runs the code between its `BOX` and
+can be redrawn on its own**: `libdmview` re-runs the code between its `BOX` and
 `END` with the box's origin and clip, and nothing else is needed.
 
 ### Draw pass
 
-When a view is shown, `dmgui` runs the code from the entry label (`.entry`)
+When a view is shown, `libdmview` runs the code from the entry label (`.entry`)
 until its top-level `RET` and draws the whole screen. After that, only
 invalidated boxes are drawn again:
 
@@ -86,29 +90,29 @@ variable invalidates both its old and its new area.
 **Opaque boxes.** Redrawing a box that does not paint all of its area itself
 needs what lies beneath it. `BOX ... OPAQUE` promises that the box covers its
 whole area (typically `FILL` or a `RECT` over it). For a box that is not
-opaque, `dmgui` redraws its parents up to the nearest opaque one, clipped to
+opaque, `libdmview` redraws its parents up to the nearest opaque one, clipped to
 the invalidated area. The view's root is always treated as opaque.
 
 ### Scrolling
 
 `SCROLL cw, ch [, flags]` right after `BOX` makes the box a viewport onto
 content of `cw` x `ch` pixels. The box's children are drawn shifted by the
-scroll offset, which `dmgui` keeps per box:
+scroll offset, which `libdmview` keeps per box:
 
-- **Dragging** the content scrolls it - `dmgui` handles that itself, no
+- **Dragging** the content scrolls it - `libdmview` handles that itself, no
   handler needed. A press on a child inside starts as usual; once the contact
   moves more than the scroll threshold (`.scrollslop`, default 8 px), the
   scroll box takes the contact over and the child gets `RELEASE` without
   `CLICK`. `WHEEL` over the box scrolls it as well.
 - `SCROLLTO @id, x, y` sets the offset from a handler (clamped to the
   content), `$box.sx` / `$box.sy` read it.
-- **Why an instruction**: `dmgui` knows the box is a viewport, so scrolling
+- **Why an instruction**: `libdmview` knows the box is a viewport, so scrolling
   needs no full redraw - it moves the pixels already on the screen and draws
   only the strip that became visible, and skips children whose bounds (from
   the box table) are outside the visible area.
 
 The content must not depend on its own box's scroll offset - a scroll
-indicator is drawn by `dmgui` with the `BAR` flag. To show something
+indicator is drawn by `libdmview` with the `BAR` flag. To show something
 elsewhere based on the offset (e.g. a "back to top" button), a handler of
 the scroll box copies `$box.sy` into a variable that other boxes read.
 
@@ -196,7 +200,7 @@ devices that report motion or a wheel (`DMDRVI_INPUT_CAP_MOTION` / `_WHEEL`).
 **Handlers** run until `RET`. They change variables and perform actions;
 drawing instructions are not allowed in a handler (the assembler rejects
 them when it can prove it, the runtime ignores them). When the handler
-returns, `dmgui` redraws what became invalid. Handlers that belong to the
+returns, `libdmview` redraws what became invalid. Handlers that belong to the
 view rather than to a box are declared with directives: `.init` (when the
 view is shown), `.timer` (periodically), `.key` (a key nobody handled). They
 run in the context of the root box.
@@ -214,7 +218,7 @@ never arriving:
 | 3 | `PINCH`, `ROTATE`, two-finger scroll |
 | F | Focus: `FOCUS`, `.navkeys`, activation, `FOCUS`/`BLUR`/`KEY` events, `SETFOCUS` |
 
-The first `dmgui` implements level 1; F and 2-3 come later without changing
+The first `libdmview` implements level 1; F and 2-3 come later without changing
 the format.
 
 ## Syntax
@@ -257,11 +261,11 @@ variable - `RECT 0, 0, $width, 8, #3D85F5` takes its width from `$width`.
 | Directive | Meaning |
 |-----------|---------|
 | `.view name` | Name of the view (required, once) |
-| `.size w, h` | Size the view was designed for; `dmgui` refuses a smaller screen |
+| `.size w, h` | Size the view was designed for; `libdmview` refuses a smaller screen |
 | `.entry label` | Start of the draw pass (required, once) |
 | `.var $name, int, init [, env:NAME]` | 32-bit signed integer variable |
 | `.var $name, str[N], "init" [, env:NAME]` | String variable holding up to N bytes |
-| `.font name, "spec"` | Font used by `TEXT`; `spec` is resolved by `dmgui` (e.g. `"sans-16"`) |
+| `.font name, "spec"` | Font used by `TEXT`; `spec` is resolved by `libdmview` (e.g. `"sans-16"`) |
 | `.define NAME, value` | Assembly-time constant |
 | `.include "file.dmvs"` | Insert another assembly file |
 | `.init label` | Handler run once when the view is shown, before the first draw |
@@ -276,7 +280,7 @@ variable - `RECT 0, 0, $width, 8, #3D85F5` takes its width from `$width`.
 - it is read when the view is shown and written back on every change, so the
   rest of the system sees it;
 - a change made by anyone else (a C module, a dmell `set`) reaches the view
-  through a dmenv listener: `dmgui` registers for `NAME` when the view is
+  through a dmenv listener: `libdmview` registers for `NAME` when the view is
   shown, and the change invalidates the boxes that read the variable, like
   any other change. See [dmenv change listener](#dmenv-change-listener).
 
@@ -416,7 +420,7 @@ in the string table or a string variable:
   on the image: nothing moves when it arrives. The image is placed in the
   rectangle by the alignment flags (`LEFT`/`CENTER`/`RIGHT`,
   `TOP`/`MIDDLE`/`BOTTOM`) and clipped to it; scaling is left for later.
-- **Loading is asynchronous.** The first time a path is drawn, `dmgui` starts
+- **Loading is asynchronous.** The first time a path is drawn, `libdmview` starts
   loading it in the background and draws nothing in its place; when the
   image is ready, the boxes that show it are invalidated and redrawn. A
   slow file (an SD card, the network) never blocks drawing or input. A file
@@ -431,9 +435,9 @@ in the string table or a string variable:
 
 ### Where the file comes from
 
-`dmgui` opens images only through the dmod file system (`Dmod_FileOpen`),
+`libdmview` opens images only through the dmod file system (`Dmod_FileOpen`),
 so the source is whatever is mounted: `/flash`, an SD card, a ramfs. An image
-from a **link** therefore needs no support in `dmgui` itself - it needs a
+from a **link** therefore needs no support in `libdmview` itself - it needs a
 file system that maps URLs to paths, e.g. a dmfsi module mounted at `/http`
 that fetches `/http/example.com/cam.jpg` from the network. Every other module
 gets network files the same way. (Alternatively a downloader module stores
@@ -442,13 +446,13 @@ the file in a ramfs and sets the variable with its path.)
 ### Formats
 
 - **Built-in: raw images** (`.dmvi`) - a small header (width, height,
-  `dmdrvi_gfx_pixel_format_t`, stride) followed by the pixels. `dmgui` copies
+  `dmdrvi_gfx_pixel_format_t`, stride) followed by the pixels. `libdmview` copies
   them as they are, with no decoding, so this is the fastest format. For
   images known at compile time (literal paths), `todmv` can convert the
   source files (PNG, BMP, ...) into `.dmvi` files next to the `.dmv` - they
   stay separate files, not embedded in the view.
 - **Other formats are plugins**: separate dmf modules implementing an image
-  decoder DIF. `dmgui` asks the loaded decoders in turn
+  decoder DIF. `libdmview` asks the loaded decoders in turn
   (`Dmod_GetNextDifModule()`) which of them recognizes the file, and lets it
   decode the image into the framebuffer's pixel format. The firmware
   contains the decoders the user puts into it (e.g. `dmbmp`, `dmpng`) - none,
@@ -463,7 +467,7 @@ The decoder DIF (draft):
 | `_decode(file, void* dst, uint32_t stride, dmdrvi_gfx_pixel_format_t format)` | Decode into a buffer in the given pixel format |
 
 The DIF belongs to a small interface module (like dmdrvi for drivers or dmfsi
-for file systems), so decoders and `dmgui` depend only on it, not on each
+for file systems), so decoders and `libdmview` depend only on it, not on each
 other.
 
 ## dmenv change listener
@@ -482,7 +486,7 @@ the module up (`Dmod_GetModuleContext()`) and calls its DIF implementation
 only if the module is still loaded - a module unloaded without
 unregistering is simply skipped, there is no dangling callback. The call
 happens in the context of whoever changed the variable, so a listener only
-records the change; `dmgui` marks the variable and redraws on its own
+records the change; `libdmview` marks the variable and redraws on its own
 thread.
 
 ## Example
@@ -578,15 +582,15 @@ Little-endian. Every instruction is a 4-byte header followed by its operands:
 - Operands follow in the order of the assembly operands: 16-bit values
   (coordinates, sizes, variable/string/font/image/box indices, labels) take 2
   bytes, colors and `n` values take 4 bytes; the instruction is padded with
-  zeros to a multiple of 4. Each opcode has one fixed layout, so `dmgui`
+  zeros to a multiple of 4. Each opcode has one fixed layout, so `libdmview`
   reads parameters without decoding anything.
 - A variable operand stores the variable's index in the operand's own slot;
   built-in variables use indices 0xFF00-0xFFFF.
 - Labels are code offsets in 4-byte words (code up to 256 KiB).
 - `size` lets an interpreter skip an instruction it does not know.
 - Strings, fonts, variables, boxes and view-level handlers live in
-  tables next to the code; their layout is part of the binary format
-  document.
+  tables next to the code; their layout is described in
+  [binary-format.md](binary-format.md).
 
 ## Open questions
 

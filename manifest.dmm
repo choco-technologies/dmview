@@ -1,5 +1,6 @@
 # Include dynamically generated versions list from latest release
 $include https://github.com/choco-technologies/dmview/releases/download/vlatest/versions.dmm
 
-# Module entry with version placeholder - expanded by $version-available
+# Module entries with version placeholder - will be expanded by $version-available
+libdmview https://github.com/choco-technologies/dmview/releases/download/v<version>/libdmview-v<version>-<arch_name>.zip
 dmview https://github.com/choco-technologies/dmview/releases/download/v<version>/dmview-v<version>-<arch_name>.zip

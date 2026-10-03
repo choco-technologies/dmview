@@ -1,0 +1,11 @@
+; One character of the built-in font at 1x and 2x
+.view   text
+.entry  draw
+.font   small, "mono-8"
+.font   big,   "mono-16"
+
+draw:
+        FILL    #000000
+        TEXT    0, 0, 8, 8, "A", small, #FFFFFF, LEFT
+        TEXT    0, 16, 16, 16, "A", big, #FFFFFF, LEFT
+        RET
