@@ -1,0 +1,17 @@
+; GOTO from a handler, and env: variables
+.view   actions
+.entry  draw
+
+.var    $env, int, 5, env:DMVIEW_TEST_LEVEL
+
+draw:
+        BOX     @all, 0, 0, 64, 48, OPAQUE
+        ON      CLICK, go
+        FILL    #000000
+        END
+        RET
+
+go:
+        SET     $env, 42
+        GOTO    "/views/next.dmv"
+        RET

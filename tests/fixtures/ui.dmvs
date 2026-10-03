@@ -1,0 +1,55 @@
+; Two boxes: a button counting clicks, darker while pressed, and a label
+; bound to $level. Each redraws on its own.
+.view   ui
+.entry  draw
+.longpress 500
+.timer  100, tick
+
+.var    $count, int, 0
+.var    $level, int, 0
+.var    $ticks, int, 0
+.var    $long,  int, 0
+.var    $drag_x, int, 0
+.var    $text,  str[16], ""
+
+draw:
+        FILL    #000000
+
+        BOX     @button, 10, 10, 20, 10, OPAQUE         ; 10..29 x 10..19
+        ON      CLICK, increment
+        ON      LONG,  long
+        ON      DRAG,  drag
+        JNE     $box.pressed, 0, .down
+        FILL    #0000FF
+        JMP     .done
+.down:
+        FILL    #000080
+.done:
+        END
+
+        BOX     @label, 40, 10, 20, 10, OPAQUE          ; 40..59 x 10..19
+        JEQ     $level, 0, .off
+        FILL    #00FF00
+        JMP     .end
+.off:
+        FILL    #FF0000
+.end:
+        END
+        RET
+
+increment:
+        ADD     $count, 1
+        RET
+
+long:
+        SET     $long, 1
+        RET
+
+drag:
+        SET     $drag_x, $ev.x
+        RET
+
+tick:
+        ADD     $ticks, 1
+        FORMAT  $text, "t=%d", $ticks
+        RET

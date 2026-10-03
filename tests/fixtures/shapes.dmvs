@@ -1,0 +1,12 @@
+; Shapes on a 64x48 surface - libdmview_test.c checks their pixels
+.view   shapes
+.entry  draw
+
+draw:
+        FILL    #000000
+        RECT    10, 10, 20, 10, #FF0000         ; red: x 10..29, y 10..19
+        RECT    -5, 40, 20, 20, #00FF00         ; clipped by the surface edges
+        RECT    40, 0, 10, 10, #80FFFFFF        ; half-transparent white over black
+        RRECT   0, 20, 20, 20, 10, #0000FF      ; a circle-shaped rounded rectangle
+        FRAME   40, 20, 20, 20, 2, #FFFF00
+        RET

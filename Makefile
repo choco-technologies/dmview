@@ -15,7 +15,7 @@ include $(DMOD_DIR)/paths.mk
 # -----------------------------------------------------------------------------
 
 # The name of the module
-DMOD_MODULE_NAME=dmview
+DMOD_MODULE_NAME=libdmview
 
 # The version of the module
 DMOD_MODULE_VERSION=0.1
@@ -24,13 +24,13 @@ DMOD_MODULE_VERSION=0.1
 DMOD_AUTHOR_NAME=Patryk Kubiak
 
 # The list of C sources
-DMOD_CSOURCES=src/dmview.c
+DMOD_CSOURCES=src/view.c src/exec.c src/input.c src/draw.c src/font.c src/claims.c src/validate.c
 
 # The list of C++ sources
 DMOD_CXXSOURCES=
 
 # The list of include directories
-DMOD_INC_DIRS=include
+DMOD_INC_DIRS=include src
 
 # The list of libraries to link
 DMOD_LIBS=
