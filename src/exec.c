@@ -413,7 +413,7 @@ static void run(struct libdmview* v, uint32_t pc, bool box_region)
                     int32_t w = v16(v, insn, 2, OPOFF(TEXT, 2)), h = v16(v, insn, 3, OPOFF(TEXT, 3));
                     const char* text = vstr(v, insn, 4, OPOFF(TEXT, 4));
                     paint_of(v, insn, 6, OPOFF(TEXT, 6), &paint, x, y, w, h);
-                    draw_text(s, &f->clip, x, y, w, h, text, v->font_scale[rd16(insn + OPOFF(TEXT, 5))], &paint,
+                    draw_text(s, &f->clip, x, y, w, h, text, &v->fonts[rd16(insn + OPOFF(TEXT, 5))], &paint,
                               insn[3] & DMV_ALIGN_FLAGS_MASK);
                 }
                 break;

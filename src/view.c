@@ -174,7 +174,12 @@ static void free_view(struct libdmview* v)
                 Dmod_Free(v->strs[i]);
         }
     }
-    void* blocks[] = { v->code, v->strings, v->vars, v->font_scale, v->boxes, v->items, v->gradients, v->stops,
+    if (v->fonts != NULL)
+    {
+        for (uint32_t i = 0; i < v->font_count; i++)
+            font_release(&v->fonts[i]);
+    }
+    void* blocks[] = { v->code, v->strings, v->vars, v->fonts, v->boxes, v->items, v->gradients, v->stops,
                        v->ints, v->strs, v->deps, v->goto_path, v->goto_taken };
     for (size_t i = 0; i < sizeof(blocks) / sizeof(blocks[0]); i++)
     {
@@ -258,17 +263,17 @@ static int load_tables(struct libdmview* v, const dmv_input_t* in, const uint8_t
     }
     Dmod_Free(raw);
 
-    /* Fonts: the built-in font's magnification for each spec */
+    /* Fonts: each spec's font file, or the built-in font */
     if ((raw = read_block(in, fonts_at, v->font_count * sizeof(dmv_font_t), &status)) == NULL)
         return status;
-    v->font_scale = Dmod_Malloc(v->font_count + 1U);
-    if (v->font_scale == NULL)
+    v->fonts = Dmod_Malloc(v->font_count * sizeof(font_t) + 1U);
+    if (v->fonts == NULL)
     {
         Dmod_Free(raw);
         return -ENOMEM;
     }
     for (uint32_t i = 0; i < v->font_count; i++)
-        v->font_scale[i] = font_scale_for(view_string(v, rd16(raw + i * sizeof(dmv_font_t) + 2U)));
+        font_resolve(view_string(v, rd16(raw + i * sizeof(dmv_font_t) + 2U)), &v->fonts[i]);
     Dmod_Free(raw);
 
     /* Boxes */
@@ -536,11 +541,13 @@ dmod_libdmview_api_declaration(1.0, dmv_status_t, _validate, ( const dmv_input_t
 int dmod_init(const Dmod_Config_t* Config)
 {
     (void)Config;
-    return claims_init();
+    int ret = claims_init();
+    return (ret == 0) ? fonts_init() : ret;
 }
 
 int dmod_deinit(void)
 {
     claims_deinit();
+    fonts_deinit();
     return 0;
 }

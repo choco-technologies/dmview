@@ -1,0 +1,19 @@
+; Text in font files and in the built-in font, white on black, on a 64x48
+; surface - libdmview_test.c checks the glyphs
+.view   fonts
+.entry  draw
+
+.font   aa,      "sans-16"          ; $DMVIEW_FONTS/sans-16.dmvf
+.font   fixed,   "builtin-16"       ; always the built-in font, 2x
+.font   missing, "nosuch-16"        ; no such file: the built-in font
+
+draw:
+        FILL    #000000
+        TEXT    0, 0, 32, 16, "WW", aa, #FFFFFF, LEFT
+        TEXT    36, 0, 12, 16, "t", aa, #FFFFFF, LEFT
+        TEXT    48, 0, 16, 16, "t:", aa, #FFFFFF, LEFT
+        TEXT    0, 16, 64, 16, "ii", aa, #FFFFFF, LEFT
+        TEXT    32, 16, 32, 16, "żó", aa, #FFFFFF, LEFT
+        TEXT    0, 32, 32, 16, "WW", fixed, #FFFFFF, LEFT
+        TEXT    32, 32, 32, 16, "WW", missing, #FFFFFF, LEFT
+        RET

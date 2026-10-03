@@ -1,9 +1,11 @@
 #include "private.h"
 
 /*
- * Built-in font: 8x8 glyphs of U+0020..U+007E, magnified by an integer
- * scale. Each glyph is 8 rows, the least significant bit is the leftmost
- * pixel.
+ * Text. Fonts are font files (fontfile.c) - antialiased, proportional - or
+ * the built-in font: 8x8 glyphs of U+0020..U+007E, magnified by an integer
+ * scale, fixed width (a console's font, and what a view gets when its font
+ * file is missing). Each glyph is 8 rows, the least significant bit is the
+ * leftmost pixel.
  *
  * Glyph data: font8x8_basic by Daniel Hepper (based on the public domain
  * VGA fonts of Marcel Sondaar / IBM) - Public Domain,
@@ -128,64 +130,126 @@ uint8_t font_scale_for(const char* spec)
     return (uint8_t)((scale == 0) ? 1 : ((scale > 16) ? 16 : scale));
 }
 
-static const uint8_t* glyph_of(unsigned char c)
+static const uint8_t* glyph_of(uint32_t c)
 {
     return (c >= GLYPH_FIRST && c <= GLYPH_LAST) ? g_glyphs[c - GLYPH_FIRST] : g_glyphs['?' - GLYPH_FIRST];
 }
 
-/* Bytes of UTF-8 continuation are not characters of their own */
-static inline bool is_char_start(unsigned char c)
+/* ---- Text layout, for both kinds of fonts ---- */
+
+/* Next character of UTF-8 text; a broken sequence is one U+FFFD per byte */
+static uint32_t next_char(const char** text)
 {
-    return (c & 0xC0u) != 0x80u;
+    const unsigned char* p = (const unsigned char*)*text;
+    uint32_t c = p[0], n = 0;
+    if (c < 0x80u)
+        n = 0;
+    else if ((c & 0xE0u) == 0xC0u)
+    {
+        n = 1;
+        c &= 0x1Fu;
+    }
+    else if ((c & 0xF0u) == 0xE0u)
+    {
+        n = 2;
+        c &= 0x0Fu;
+    }
+    else if ((c & 0xF8u) == 0xF0u)
+    {
+        n = 3;
+        c &= 0x07u;
+    }
+    else
+    {
+        *text += 1;
+        return 0xFFFDu;
+    }
+    for (uint32_t i = 1; i <= n; i++)
+    {
+        if ((p[i] & 0xC0u) != 0x80u)
+        {
+            *text += 1;
+            return 0xFFFDu;
+        }
+        c = (c << 6) | (p[i] & 0x3Fu);
+    }
+    *text += 1U + n;
+    return c;
+}
+
+static inline int32_t advance_of(const font_t* f, uint32_t c)
+{
+    if (f->file == NULL)
+        return GLYPH_SIZE * f->scale;
+    const uint8_t* g = font_glyph(f->file, c);
+    return (g != NULL) ? g[10] : 0;
+}
+
+static inline int32_t line_height_of(const font_t* f)
+{
+    return (f->file != NULL) ? f->file->line_height : GLYPH_SIZE * f->scale + f->scale;
 }
 
 /*
- * Length in bytes of the line starting at `text`: up to the line end or,
- * when wrapping, after the last space that keeps it within `max_chars`
- * characters. *next receives where the following line starts.
+ * The line starting at `text`: up to the line end or, when wrapping, after
+ * the last space that keeps it within `w` pixels (a word longer than the
+ * line is broken). *next receives where the following line starts, *width
+ * the line's width; returns its length in bytes.
  */
-static size_t line_length(const char* text, uint32_t max_chars, bool wrap, const char** next)
+static size_t layout_line(const font_t* f, const char* text, int32_t w, bool wrap, const char** next, int32_t* width)
 {
-    size_t i = 0, last_space = 0;
-    uint32_t chars = 0;
-    bool have_space = false;
+    const char* p = text;
+    const char* space = NULL;
+    int32_t x = 0, at_space = 0;
 
-    for (; text[i] != '\0' && text[i] != '\n'; i++)
+    while (*p != '\0' && *p != '\n')
     {
-        if (is_char_start((unsigned char)text[i]))
+        const char* start = p;
+        uint32_t c = next_char(&p);
+        int32_t advance = advance_of(f, c);
+        if (wrap && x + advance > w && start != text)
         {
-            if (wrap && chars == max_chars)
+            if (space != NULL)
             {
-                if (have_space)
-                {
-                    *next = text + last_space + 1;
-                    return last_space;
-                }
-                *next = text + i;
-                return i;
+                *next = space + 1;
+                *width = at_space;
+                return (size_t)(space - text);
             }
-            chars++;
+            *next = start;
+            *width = x;
+            return (size_t)(start - text);
         }
-        if (text[i] == ' ')
+        if (c == ' ')
         {
-            last_space = i;
-            have_space = true;
+            space = start;
+            at_space = x;
         }
+        x += advance;
     }
-    *next = (text[i] == '\n') ? text + i + 1 : text + i;
-    return i;
+    *next = (*p == '\n') ? p + 1 : p;
+    *width = x;
+    return (size_t)(p - text);
 }
 
-static uint32_t chars_in(const char* text, size_t len)
+/* Number of lines the text is laid out in */
+static uint32_t count_lines(const font_t* f, const char* text, int32_t w, bool wrap)
 {
-    uint32_t n = 0;
-    for (size_t i = 0; i < len; i++)
-        n += is_char_start((unsigned char)text[i]) ? 1u : 0u;
-    return n;
+    uint32_t lines = 1;
+    for (const char* p = text; ; lines++)
+    {
+        const char* next;
+        int32_t width;
+        (void)layout_line(f, p, w, wrap, &next, &width);
+        if (*next == '\0' && (next == p || next[-1] != '\n'))
+            return lines;
+        p = next;
+    }
 }
 
-static void draw_glyph(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, const uint8_t* g,
-                       uint8_t scale, const paint_t* paint)
+/* ---- Glyphs ---- */
+
+static void draw_builtin_glyph(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, const uint8_t* g,
+                               uint8_t scale, const paint_t* paint)
 {
     int32_t size = GLYPH_SIZE * scale;
     if (x >= clip->x1 || y >= clip->y1 || x + size <= clip->x0 || y + size <= clip->y0)
@@ -214,34 +278,43 @@ static void draw_glyph(const libdmview_surface_t* s, const rect_t* clip, int32_t
     }
 }
 
-/* Number of lines the text is laid out in */
-static uint32_t count_lines(const char* text, uint32_t max_chars, bool wrap)
+/* An antialiased glyph with its pen at x and its baseline at `baseline` */
+static void draw_file_glyph(const libdmview_surface_t* s, const rect_t* clip, const font_file_t* f, const uint8_t* g,
+                            int32_t x, int32_t baseline, const paint_t* paint)
 {
-    uint32_t lines = 1;
-    for (const char* p = text; ; lines++)
+    int32_t w = g[6], h = g[7];
+    int32_t gx = x + (int8_t)g[8], gy = baseline - (int8_t)g[9];
+    int32_t c0 = (clip->x0 > gx) ? clip->x0 - gx : 0, c1 = (clip->x1 < gx + w) ? clip->x1 - gx : w;
+    int32_t r0 = (clip->y0 > gy) ? clip->y0 - gy : 0, r1 = (clip->y1 < gy + h) ? clip->y1 - gy : h;
+    uint32_t stride = ((uint32_t)w + 1U) / 2U;
+    const uint8_t* bits = f->bitmaps + rd32(g);
+
+    for (int32_t row = r0; row < r1; row++)
     {
-        const char* next;
-        (void)line_length(p, max_chars, wrap, &next);
-        if (*next == '\0' && (next == p || next[-1] != '\n'))
-            return lines;
-        p = next;
+        const uint8_t* line = bits + (uint32_t)row * stride;
+        for (int32_t col = c0; col < c1; col++)
+        {
+            uint32_t cover = (line[col / 2] >> ((col & 1) * 4)) & 0x0Fu;
+            if (cover != 0)
+                draw_cover(s, paint, gx + col, gy + row, cover * (255u / DMVF_COVERAGE_MAX));
+        }
     }
 }
 
 void draw_text(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h,
-               const char* text, uint8_t scale, const paint_t* paint, uint8_t align)
+               const char* text, const font_t* font, const paint_t* paint, uint8_t align)
 {
-    int32_t advance = GLYPH_SIZE * scale, line_h = GLYPH_SIZE * scale + scale;
     bool wrap = (align & DMV_ALIGN_WRAP) != 0;
-    uint32_t max_chars = (w > advance) ? (uint32_t)(w / advance) : 1u;
+    int32_t line_h = line_height_of(font);
     rect_t area = { x, y, x + w, y + h };
 
     area = rect_and(area, clip);
     if (rect_empty(&area) || (paint->grad == NULL && (paint->color >> 24) == 0) || text[0] == '\0')
         return;
 
-    uint32_t lines = count_lines(text, max_chars, wrap);
-    int32_t total = (int32_t)lines * line_h - scale;
+    uint32_t lines = count_lines(font, text, w, wrap);
+    /* The built-in font's line spacing is below its glyphs - not after the last line */
+    int32_t total = (int32_t)lines * line_h - ((font->file == NULL) ? font->scale : 0);
     int32_t ty = y;
     if ((align & DMV_ALIGN_VMASK) == DMV_ALIGN_MIDDLE)
         ty = y + (h - total) / 2;
@@ -251,21 +324,29 @@ void draw_text(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int3
     for (const char* p = text; lines > 0 && ty < area.y1; lines--, ty += line_h)
     {
         const char* next;
-        size_t len = line_length(p, max_chars, wrap, &next);
+        int32_t width;
+        size_t len = layout_line(font, p, w, wrap, &next, &width);
         if (ty + line_h > area.y0)
         {
-            int32_t width = (int32_t)chars_in(p, len) * advance;
             int32_t tx = x;
             if ((align & DMV_ALIGN_HMASK) == DMV_ALIGN_CENTER)
                 tx = x + (w - width) / 2;
             else if ((align & DMV_ALIGN_HMASK) == DMV_ALIGN_RIGHT)
                 tx = x + w - width;
-            for (size_t i = 0; i < len && tx < area.x1; i++)
+            for (const char* q = p; q < p + len && tx < area.x1; )
             {
-                if (!is_char_start((unsigned char)p[i]))
+                uint32_t c = next_char(&q);
+                if (font->file == NULL)
+                {
+                    draw_builtin_glyph(s, &area, tx, ty, glyph_of(c), font->scale, paint);
+                    tx += GLYPH_SIZE * font->scale;
                     continue;
-                draw_glyph(s, &area, tx, ty, glyph_of((unsigned char)p[i]), scale, paint);
-                tx += advance;
+                }
+                const uint8_t* g = font_glyph(font->file, c);
+                if (g == NULL)
+                    continue;
+                draw_file_glyph(s, &area, font->file, g, tx, ty + font->file->ascent, paint);
+                tx += g[10];
             }
         }
         p = next;

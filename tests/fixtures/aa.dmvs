@@ -1,0 +1,19 @@
+; Antialiased curves, white on black, on a 64x48 surface - libdmview_test.c
+; checks their coverage
+.view   aa
+.entry  draw
+
+.var    $n, int, 0
+
+draw:
+        FILL    #000000
+        CIRCLE  16, 16, 12, #FFFFFF             ; x 4..27, y 4..27
+        RING    48, 16, 12, 3, #FFFFFF          ; x 36..59, y 4..27
+        RRECT   4, 32, 24, 14, 6, #FFFFFF       ; x 4..27, y 32..45
+
+        BOX     @frame, 34, 30, 28, 18          ; transparent, redrawn with $n
+        JEQ     $n, 99, .draw
+.draw:
+        RFRAME  0, 0, 28, 18, 7, 2, #FFFFFF
+        END
+        RET

@@ -89,7 +89,9 @@ variable invalidates both its old and its new area.
 
 **Opaque boxes.** Redrawing a box that does not paint all of its area itself
 needs what lies beneath it. `BOX ... OPAQUE` promises that the box covers its
-whole area (typically `FILL` or a `RECT` over it). For a box that is not
+whole area with opaque pixels (typically `FILL` or a `RECT` over it) - not
+a button drawn as an `RRECT`: its corners, and the antialiased pixels along
+them, show what lies beneath. For a box that is not
 opaque, `libdmview` redraws its parents up to the nearest opaque one, clipped to
 the invalidated area. The view's root is always treated as opaque.
 
@@ -266,7 +268,7 @@ variable - `RECT 0, 0, $width, 8, #3D85F5` takes its width from `$width`.
 | `.entry label` | Start of the draw pass (required, once) |
 | `.var $name, int, init [, env:NAME]` | 32-bit signed integer variable |
 | `.var $name, str[N], "init" [, env:NAME]` | String variable holding up to N bytes |
-| `.font name, "spec"` | Font used by `TEXT`; `spec` is resolved by `libdmview` (e.g. `"sans-16"`) |
+| `.font name, "spec"` | Font used by `TEXT`; `spec` is resolved by `libdmview` (e.g. `"sans-16"`) - see [Fonts](#fonts) |
 | `.gradient name, LINEAR [, angle], stop, stop [, ...]` | Linear gradient - see [Gradients](#gradients) |
 | `.gradient name, RADIAL [, cx, cy, rx, ry], stop, stop [, ...]` | Radial gradient - see [Gradients](#gradients) |
 | `.define NAME, value` | Assembly-time constant |
@@ -344,7 +346,30 @@ A subroutine called inside a box draws in that box, so widgets are reusable:
 ### Drawing
 
 Coordinates are relative to the current box, everything is clipped to it.
-Colors with alpha below 0xFF are blended.
+Colors with alpha below 0xFF are blended. Curves (`RRECT`, `RFRAME`,
+`CIRCLE`, `RING`) are antialiased: the pixels their edges cross get the part
+of them the shape covers as alpha. Straight edges at whole pixels stay
+sharp; `LINE` is not antialiased yet.
+
+### Fonts
+
+`TEXT` draws in the font its `.font` names. `libdmview` resolves the spec
+when the view is shown:
+
+| Spec | Font |
+|------|------|
+| `"builtin-N"` | The built-in 8x8 font, magnified N / 8 times (`builtin-8`, `builtin-16`) - fixed width, never a file: a console's font |
+| has a `/` | The font file at that path |
+| anything else | `$DMVIEW_FONTS/<spec>.dmvf` |
+
+Font files ([font-format.md](font-format.md)) hold antialiased glyphs -
+proportional, any Unicode character of the BMP the file has, text is UTF-8.
+dmview ships Roboto as `sans-12` ... `sans-32` and `sans-bold-12` ...
+`sans-bold-32`; `tools/ttf2dmvf.py` makes further sizes and fonts from
+TrueType files. When the file is missing or is not a valid font, the
+built-in font is used, magnified by the spec's size / 8 - a view always
+shows its text. A file is loaded into memory once and shared by every view
+that uses it.
 
 | Opcode | Mnemonic | Operands | Description |
 |--------|----------|----------|-------------|
@@ -405,7 +430,9 @@ so one gradient fits buttons of every size:
   neighbors. Two stops at the same position make a hard edge. Before the
   first stop the first color, after the last one the last color.
 - Colors with alpha are blended over what is beneath, per pixel; a gradient
-  of opaque colors only is written without blending.
+  of opaque colors only is written without blending - on an RGB565 screen
+  with ordered dithering (4x4 Bayer), so a gradient between close colors
+  does not show as bands of RGB565's 32 / 64 levels.
 - A gradient is a constant: an operand names it, never a variable. Choose
   between gradients with a jump, as `button_bg` in the example does with
   colors.
@@ -650,8 +677,7 @@ Little-endian. Every instruction is a 4-byte header followed by its operands:
 
 ## Open questions
 
-- **Fonts**: built-in bitmap fonts first; further fonts probably as plugins
-  the same way as image decoders.
+- **Fonts**: kerning, and fonts beyond the BMP.
 - **Embedded resources**: should small icons optionally be embedded in the
   `.dmv` (a resource section), so a simple view is one file?
 - **Image scaling** (`object-fit: contain/cover`) in `IMAGE`.

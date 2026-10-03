@@ -23,6 +23,7 @@ target_link_libraries(${DMOD_MODULE_NAME}
 
 target_compile_definitions(${DMOD_MODULE_NAME} PRIVATE
     LIBDMVIEW_FIXTURES_DIR="${CMAKE_CURRENT_BINARY_DIR}/fixtures"
+    LIBDMVIEW_FONTS_DIR="${PROJECT_SOURCE_DIR}/fonts"
 )
 
 find_program(DMF_GET_EXECUTABLE dmf-get HINTS ${DMOD_TOOLS_BIN_DIR} PATHS ENV PATH)
