@@ -61,6 +61,69 @@ static inline void rect_add(rect_t* to, const rect_t* r)
     if (r->y1 > to->y1) to->y1 = r->y1;
 }
 
+/* ---- Pixels ---- */
+
+static inline uint16_t to_rgb565(uint32_t c)
+{
+    return (uint16_t)(((c >> 8) & 0xF800u) | ((c >> 5) & 0x07E0u) | ((c >> 3) & 0x001Fu));
+}
+
+/* (src * a + dst * (255 - a)) / 255 for one channel */
+static inline uint32_t mix(uint32_t src, uint32_t dst, uint32_t a)
+{
+    uint32_t x = src * a + dst * (255u - a) + 128u;
+    return (x + (x >> 8)) >> 8;
+}
+
+static inline uint16_t blend565(uint16_t d, uint32_t color)
+{
+    uint32_t a = color >> 24;
+    uint32_t dr = ((d >> 11) & 0x1Fu) << 3, dg = ((d >> 5) & 0x3Fu) << 2, db = (d & 0x1Fu) << 3;
+    return (uint16_t)(((mix((color >> 16) & 0xFFu, dr, a) & 0xF8u) << 8) |
+                      ((mix((color >> 8) & 0xFFu, dg, a) & 0xFCu) << 3) | (mix(color & 0xFFu, db, a) >> 3));
+}
+
+static inline uint32_t blend8888(uint32_t d, uint32_t color)
+{
+    uint32_t a = color >> 24;
+    return 0xFF000000u | (mix((color >> 16) & 0xFFu, (d >> 16) & 0xFFu, a) << 16) |
+           (mix((color >> 8) & 0xFFu, (d >> 8) & 0xFFu, a) << 8) | mix(color & 0xFFu, d & 0xFFu, a);
+}
+
+/* ---- Gradients ---- */
+
+#define GRADIENT_STEPS      256u            /* Palette entries of a gradient */
+#define GRADIENT_NO_LUT     0xFFu           /* lut_format: palette not built yet */
+
+/** A gradient of the view, with its palette in the surface's pixel format. */
+typedef struct
+{
+    uint8_t     kind;               /* DMV_GRADIENT_* */
+    uint8_t     count;              /* Stops */
+    uint16_t    first;              /* First stop in the view's stop table */
+    int16_t     param[4];
+    bool        opaque;             /* Every stop opaque: `lut` holds pixels, else 0xAARRGGBB */
+    uint8_t     lut_format;         /* Pixel format `lut` was built for, GRADIENT_NO_LUT */
+    uint32_t    lut[GRADIENT_STEPS];
+} grad_t;
+
+/**
+ * What a shape is drawn with: a color, or a gradient placed on the shape's
+ * rectangle. Gradient positions are 16.16 fixed point, x and y relative to
+ * the shape's origin (ox, oy):
+ *  - linear: palette index = a0 + x * ax + y * ay;
+ *  - radial: u = a0 + x * ax, v = b0 + y * by (1.0 = the radius),
+ *    palette index = sqrt(u^2 + v^2) * 256.
+ */
+typedef struct
+{
+    uint32_t        color;          /* 0xAARRGGBB, when grad is NULL */
+    const grad_t*   grad;
+    int32_t         ox, oy;         /* Origin of the shape the gradient is placed on */
+    int32_t         a0, ax, ay;     /* At the middle of the pixel at ox, oy */
+    int32_t         b0, by;
+} paint_t;
+
 /** A box at run time. Geometry is what its last draw found. */
 typedef struct
 {
@@ -117,6 +180,9 @@ struct libdmview
     rbox_t*         boxes;
     uint32_t        item_count;
     item_t*         items;
+    uint32_t        gradient_count;
+    grad_t*         gradients;
+    dmv_stop_t*     stops;
 
     /* Variables */
     int32_t*        ints;           /* Integer values (string variables unused) */
@@ -172,19 +238,26 @@ void        view_mark_dirty(struct libdmview* v, int32_t box);
 void        exec_handler(struct libdmview* v, int32_t box, uint16_t label);
 void        exec_draw(struct libdmview* v, rect_t* changed);
 
-/* draw.c - everything clipped to `clip`, colors 0xAARRGGBB */
+/* draw.c - everything clipped to `clip`, drawn with a paint */
 bool        draw_supported(uint8_t format);
-void        draw_rect(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color);
-void        draw_frame(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h, int32_t t, uint32_t color);
-void        draw_rrect(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, uint32_t color);
-void        draw_rframe(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, int32_t t, uint32_t color);
-void        draw_circle(const libdmview_surface_t* s, const rect_t* clip, int32_t cx, int32_t cy, int32_t r, uint32_t color);
-void        draw_ring(const libdmview_surface_t* s, const rect_t* clip, int32_t cx, int32_t cy, int32_t r, int32_t t, uint32_t color);
-void        draw_line(const libdmview_surface_t* s, const rect_t* clip, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t t, uint32_t color);
+void        draw_span(const libdmview_surface_t* s, int32_t y, int32_t x0, int32_t x1, uint32_t color);
+void        draw_pixels(const libdmview_surface_t* s, int32_t y, int32_t x0, int32_t x1, uint32_t pixel);
+void        draw_rect(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h, const paint_t* paint);
+void        draw_frame(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h, int32_t t, const paint_t* paint);
+void        draw_rrect(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, const paint_t* paint);
+void        draw_rframe(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, int32_t t, const paint_t* paint);
+void        draw_circle(const libdmview_surface_t* s, const rect_t* clip, int32_t cx, int32_t cy, int32_t r, const paint_t* paint);
+void        draw_ring(const libdmview_surface_t* s, const rect_t* clip, int32_t cx, int32_t cy, int32_t r, int32_t t, const paint_t* paint);
+void        draw_line(const libdmview_surface_t* s, const rect_t* clip, int32_t x0, int32_t y0, int32_t x1, int32_t y1, int32_t t, const paint_t* paint);
+
+/* gradient.c */
+void        paint_gradient(paint_t* paint, grad_t* grad, const dmv_stop_t* stops, uint8_t format,
+                           int32_t x, int32_t y, int32_t w, int32_t h);
+void        gradient_span(const libdmview_surface_t* s, const paint_t* paint, int32_t y, int32_t x0, int32_t x1);
 
 /* font.c */
 uint8_t     font_scale_for(const char* spec);
 void        draw_text(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h,
-                      const char* text, uint8_t scale, uint32_t color, uint8_t align);
+                      const char* text, uint8_t scale, const paint_t* paint, uint8_t align);
 
 #endif /* LIBDMVIEW_PRIVATE_H */

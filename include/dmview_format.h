@@ -25,7 +25,11 @@
 
 /** Format version this header describes. */
 #define DMV_VERSION_MAJOR        0
-#define DMV_VERSION_MINOR        1
+#define DMV_VERSION_MINOR        2
+
+/** Header size: version 0.2 added the gradient tables at its end. */
+#define DMV_HEADER_SIZE          96u
+#define DMV_HEADER_SIZE_0_1      80u
 
 /** Instruction header: opcode, size, varmask, flags. */
 #define DMV_INSTRUCTION_HEADER_SIZE  4u
@@ -170,6 +174,24 @@ typedef enum
 #define DMV_ALIGN_FLAGS_MASK     0x1Fu
 
 /**
+ * Paint flag of the drawing instructions with a color operand: the operand
+ * holds the index of a gradient (an immediate, never a variable) instead of
+ * a color. Next to the instruction's own flags (TEXT's alignment).
+ */
+#define DMV_PAINT_GRADIENT       0x80u
+
+/** Gradient kinds (.gradient). */
+#define DMV_GRADIENT_LINEAR      0u
+#define DMV_GRADIENT_RADIAL      1u
+
+/** Color stops of one gradient. */
+#define DMV_MIN_STOPS            2u
+#define DMV_MAX_STOPS            16u
+
+/** Stop positions are in 1/1000 of the gradient (0 ... 1000). */
+#define DMV_STOP_SCALE           1000u
+
+/**
  * Description of one opcode. Plain data only - no pointers: the dmod loader
  * does not relocate pointers stored in initialized data.
  */
@@ -305,6 +327,8 @@ typedef struct
     dmv_section_t boxes;             /**< dmv_box_t[count] */
     dmv_section_t items;             /**< dmv_item_t[count] */
     dmv_section_t symbols;           /**< dmv_symbol_t[count] */
+    dmv_section_t gradients;         /**< dmv_gradient_t[count] - version 0.2 */
+    dmv_section_t stops;             /**< dmv_stop_t[count] - version 0.2 */
 } dmv_header_t;
 
 /** Variable record. */
@@ -324,6 +348,31 @@ typedef struct
     uint16_t name;          /**< String index of the name */
     uint16_t spec;          /**< String index of the spec, e.g. "sans-16" */
 } dmv_font_t;
+
+/**
+ * Gradient record. Its geometry is relative to the rectangle of the shape it
+ * paints (x, y, w, h of RECT, the box of FILL, ...), so one gradient fits
+ * every size.
+ */
+typedef struct
+{
+    uint16_t name;          /**< String index of the name */
+    uint8_t  kind;          /**< DMV_GRADIENT_* */
+    uint8_t  count;         /**< Stops, DMV_MIN_STOPS ... DMV_MAX_STOPS */
+    uint16_t first;         /**< Index of its first stop in the stop table */
+    int16_t  param[4];      /**< LINEAR: angle in degrees (0 = up, 90 = right), 0, 0, 0;
+                                 RADIAL: center x, y in percent of the shape's w, h,
+                                 radius x, y in percent of w, h (> 0) */
+    uint16_t reserved;      /**< 0 */
+} dmv_gradient_t;
+
+/** Color stop of a gradient. */
+typedef struct
+{
+    uint32_t color;         /**< 0xAARRGGBB */
+    uint16_t position;      /**< 0 ... DMV_STOP_SCALE, not decreasing within a gradient */
+    uint16_t reserved;      /**< 0 */
+} dmv_stop_t;
 
 /** Box record. */
 typedef struct

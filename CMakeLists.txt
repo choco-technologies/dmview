@@ -52,6 +52,7 @@ dmod_add_library(${DMOD_MODULE_NAME} ${DMOD_MODULE_VERSION}
     src/exec.c
     src/input.c
     src/draw.c
+    src/gradient.c
     src/font.c
     src/claims.c
     src/validate.c

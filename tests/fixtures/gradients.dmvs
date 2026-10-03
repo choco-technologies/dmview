@@ -1,0 +1,29 @@
+; Gradients on a 64x48 surface - libdmview_test.c checks their pixels
+.view   gradients
+.entry  draw
+
+.var    $mark, int, 0
+
+.gradient down,  LINEAR, 180, #000000, #FFFFFF      ; black at the top, white at the bottom
+.gradient right, LINEAR, 90, #FF0000, #0000FF       ; red on the left, blue on the right
+.gradient glow,  RADIAL, #FFFFFF, #000000           ; white in the middle, black at the edge
+.gradient fade,  LINEAR, 90, #00FFFFFF, #FFFFFFFF   ; transparent to white
+.gradient steps, LINEAR, 90, #FF0000 50, #00FF00 50 ; a hard stop in the middle
+
+draw:
+        FILL    #000000
+        RECT    0, 0, 16, 32, down          ; x 0..15, y 0..31
+        RECT    16, 0, 32, 8, right         ; x 16..47, y 0..7
+        CIRCLE  56, 8, 8, glow              ; x 48..63, y 0..15
+        RECT    16, 8, 32, 8, fade          ; x 16..47, y 8..15, over black
+        RECT    16, 16, 32, 8, steps        ; x 16..47, y 16..23
+
+        BOX     @panel, 16, 24, 48, 24, OPAQUE  ; x 16..63, y 24..47
+        FILL    down                        ; spans the whole box
+        BOX     @mark, 8, 8, 8, 8           ; x 24..31, y 32..39 - transparent
+        JEQ     $mark, 0, .off
+        RECT    0, 0, 4, 4, #FF00FF
+.off:
+        END
+        END
+        RET

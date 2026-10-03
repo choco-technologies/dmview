@@ -185,7 +185,7 @@ static uint32_t chars_in(const char* text, size_t len)
 }
 
 static void draw_glyph(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, const uint8_t* g,
-                       uint8_t scale, uint32_t color)
+                       uint8_t scale, const paint_t* paint)
 {
     int32_t size = GLYPH_SIZE * scale;
     if (x >= clip->x1 || y >= clip->y1 || x + size <= clip->x0 || y + size <= clip->y0)
@@ -208,7 +208,7 @@ static void draw_glyph(const libdmview_surface_t* s, const rect_t* clip, int32_t
                 bits >>= 1;
                 run++;
             }
-            draw_rect(s, clip, x + col * scale, y + row * scale, run * scale, scale, color);
+            draw_rect(s, clip, x + col * scale, y + row * scale, run * scale, scale, paint);
             col += run;
         }
     }
@@ -229,7 +229,7 @@ static uint32_t count_lines(const char* text, uint32_t max_chars, bool wrap)
 }
 
 void draw_text(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h,
-               const char* text, uint8_t scale, uint32_t color, uint8_t align)
+               const char* text, uint8_t scale, const paint_t* paint, uint8_t align)
 {
     int32_t advance = GLYPH_SIZE * scale, line_h = GLYPH_SIZE * scale + scale;
     bool wrap = (align & DMV_ALIGN_WRAP) != 0;
@@ -237,7 +237,7 @@ void draw_text(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int3
     rect_t area = { x, y, x + w, y + h };
 
     area = rect_and(area, clip);
-    if (rect_empty(&area) || (color >> 24) == 0 || text[0] == '\0')
+    if (rect_empty(&area) || (paint->grad == NULL && (paint->color >> 24) == 0) || text[0] == '\0')
         return;
 
     uint32_t lines = count_lines(text, max_chars, wrap);
@@ -264,7 +264,7 @@ void draw_text(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int3
             {
                 if (!is_char_start((unsigned char)p[i]))
                     continue;
-                draw_glyph(s, &area, tx, ty, glyph_of((unsigned char)p[i]), scale, color);
+                draw_glyph(s, &area, tx, ty, glyph_of((unsigned char)p[i]), scale, paint);
                 tx += advance;
             }
         }
