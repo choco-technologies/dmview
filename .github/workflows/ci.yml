@@ -19,6 +19,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Clear the dmf-get cache
+        run: |
+          # The image may carry manifests cached before the versions it needs
+          dmf-get --clear-cache
+
       - name: Build libdmview and dmview
         run: |
           mkdir -p build

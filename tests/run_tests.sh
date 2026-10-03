@@ -16,7 +16,7 @@ TODMV_MANIFEST="${TODMV_MANIFEST:-https://raw.githubusercontent.com/choco-techno
 export DMOD_DMF_DIR="$DMF_DIR"
 mkdir -p "$OUTPUT"
 
-dmf-get install todmv -m "$TODMV_MANIFEST" -y > /dev/null
+dmf-get install todmv -m "$TODMV_MANIFEST" --type dmf -y > /dev/null
 for source in "$SOURCES"/*.dmvs; do
     dmod_loader "$DMF_DIR/todmv.dmf" --args "$source" -o "$OUTPUT/$(basename "$source" .dmvs).dmv"
 done
