@@ -3,11 +3,18 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/choco-technologies/dmview/actions/workflows/ci.yml/badge.svg)](https://github.com/choco-technologies/dmview/actions/workflows/ci.yml)
 
-dmview DMOD library module.
+UI view format of the dmod GUI stack: drawing and input-handling programs in
+a text assembly (`.dmvs`) and its binary form (`.dmv`).
 
 ## Description
 
-TODO: describe what this module does.
+A view is a small program - drawing instructions with fixed binary
+parameters, input handlers and variables - that `dmgui` executes directly,
+without parsing at run time. HTML/CSS (`dmhtml`, `dmcss`) compiles to
+`.dmvs`, `todmv` assembles it into `.dmv`.
+
+The instruction set is described in [docs/assembly.md](docs/assembly.md)
+(draft).
 
 ## Building
 
