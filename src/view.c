@@ -180,6 +180,14 @@ static void free_view(struct libdmview* v)
             font_release(&v->fonts[i]);
     }
     images_free_slots(v);
+    if (v->gradients != NULL)
+    {
+        for (uint32_t i = 0; i < v->gradient_count; i++)
+        {
+            if (v->gradients[i].dither != NULL)
+                Dmod_Free(v->gradients[i].dither);
+        }
+    }
     void* blocks[] = { v->code, v->strings, v->vars, v->fonts, v->boxes, v->items, v->gradients, v->stops,
                        v->ints, v->strs, v->deps, v->goto_path, v->goto_taken, v->dir };
     for (size_t i = 0; i < sizeof(blocks) / sizeof(blocks[0]); i++)
@@ -382,6 +390,7 @@ static int load_tables(struct libdmview* v, const dmv_input_t* in, const uint8_t
             for (uint32_t k = 0; k < g->count; k++)
                 g->opaque = g->opaque && (v->stops[g->first + k].color >> 24) == 0xFFu;
             g->lut_format = GRADIENT_NO_LUT;
+            g->dither = NULL;
         }
         Dmod_Free(raw);
     }

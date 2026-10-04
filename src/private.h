@@ -91,6 +91,8 @@ static inline uint32_t blend8888(uint32_t d, uint32_t color)
            (mix((color >> 8) & 0xFFu, (d >> 8) & 0xFFu, a) << 8) | mix(color & 0xFFu, d & 0xFFu, a);
 }
 
+#define DITHER_LEVELS       16u             /* Thresholds of the 4x4 Bayer matrix */
+
 /* ---- Gradients ---- */
 
 #define GRADIENT_STEPS      256u            /* Palette entries of a gradient */
@@ -106,6 +108,8 @@ typedef struct
     bool        opaque;             /* Every stop opaque: written without blending */
     uint8_t     lut_format;         /* Pixel format `lut` was built for, GRADIENT_NO_LUT */
     uint32_t    lut[GRADIENT_STEPS];    /* 0xAARRGGBB */
+    uint16_t*   dither;             /* Opaque on RGB565: every entry dithered with each threshold
+                                     * of the 4x4 Bayer matrix, [row][entry][column]; NULL otherwise */
 } grad_t;
 
 /**
