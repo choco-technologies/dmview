@@ -442,6 +442,7 @@ static libdmview_t open_view(const dmv_input_t* input, char* dir, int* status)
         memset(v, 0, sizeof(*v));
         v->magic = VIEW_MAGIC;
         v->captured = ROOT;
+        v->occluder = -1;
         v->full = true;
         v->dir = dir;
         dir = NULL;

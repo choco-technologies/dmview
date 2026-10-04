@@ -260,6 +260,8 @@ struct libdmview
     /* Drawing */
     bool            full;           /* Everything has to be drawn */
     bool            any_dirty;
+    int32_t         occluder;       /* A redraw of the root: the box that hides what is drawn before it, -1 */
+    rect_t          occluder_clip;  /* The root's clip from that box on */
     const libdmview_surface_t* surface;
     uint16_t        surface_w, surface_h;
 

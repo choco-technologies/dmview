@@ -284,7 +284,16 @@ static void run(struct libdmview* v, uint32_t pc, bool box_region)
             /* ---- Structure and flow ---- */
             case DMV_OP_BOX:
                 if (v->drawing)
+                {
+                    /* What was drawn before the box that hides it was drawn
+                     * only where it shows; from here on everything */
+                    if (v->occluder >= 0 && v->depth == 0 && rd16(insn + OPOFF(BOX, 0)) == (uint16_t)v->occluder)
+                    {
+                        v->frames[0].clip = v->occluder_clip;
+                        v->occluder = -1;
+                    }
                     enter_box(v, insn);
+                }
                 break;
             case DMV_OP_END:
                 if (v->drawing && v->depth > 0)
@@ -591,6 +600,85 @@ void exec_handler(struct libdmview* v, int32_t box, uint16_t label)
 }
 
 /* Draw `area` of the region of box `target` (ROOT: the whole view). */
+/* What of `a` shows around `o` when that is one rectangle; false when it is
+ * not (`o` in the middle of an edge, or not over `a`) */
+static bool shows_around(const rect_t* a, const rect_t* o, rect_t* visible)
+{
+    *visible = *a;
+    if (o->x0 <= a->x0 && o->x1 >= a->x1)
+    {
+        if (o->y0 <= a->y0 && o->y1 > a->y0)
+            visible->y0 = (o->y1 < a->y1) ? o->y1 : a->y1;
+        else if (o->y1 >= a->y1 && o->y0 < a->y1)
+            visible->y1 = (o->y0 > a->y0) ? o->y0 : a->y0;
+        else
+            return false;
+        return true;
+    }
+    if (o->y0 <= a->y0 && o->y1 >= a->y1)
+    {
+        if (o->x0 <= a->x0 && o->x1 > a->x0)
+            visible->x0 = (o->x1 < a->x1) ? o->x1 : a->x1;
+        else if (o->x1 >= a->x1 && o->x0 < a->x1)
+            visible->x1 = (o->x0 > a->x0) ? o->x0 : a->x0;
+        else
+            return false;
+        return true;
+    }
+    return false;
+}
+
+/* Boxes of the root that cover all their area with opaque pixels */
+static bool hides_beneath(const rbox_t* b)
+{
+    return b->parent == ROOT && (b->flags & DMV_BOX_OPAQUE) != 0 && (b->flags & BOXF_TRANSLUCENT) == 0;
+}
+
+/*
+ * A redraw of the root: the opaque box of the root that hides the most of
+ * `area` - everything executed before its BOX is drawn only where it shows.
+ * Where the boxes are this time (a box may move with a variable) a run of
+ * the view without drawing finds out first. -1 when no box hides a part
+ * that leaves one rectangle.
+ */
+static int32_t find_occluder(struct libdmview* v, const rect_t* area, rect_t* visible)
+{
+    bool any = false;
+    for (uint32_t i = 0; i < v->box_count && !any; i++)
+        any = hides_beneath(&v->boxes[i]);
+    if (!any)
+        return -1;
+
+    frame_t* f = &v->frames[0];
+    v->depth = 0;
+    f->ox = 0;
+    f->oy = 0;
+    f->clip = (rect_t){ 0, 0, 0, 0 };   /* Nothing is drawn */
+    f->view_clip = (rect_t){ 0, 0, v->surface_w, v->surface_h };
+    f->box = ROOT;
+    f->alpha = 255u;
+    v->occluder = -1;
+    run(v, v->entry * DMV_CODE_WORD, false);
+
+    int32_t best = -1;
+    int64_t best_area = (int64_t)(area->x1 - area->x0) * (area->y1 - area->y0);
+    for (uint32_t i = 0; i < v->box_count; i++)
+    {
+        const rbox_t* b = &v->boxes[i];
+        rect_t shown;
+        if ((b->flags & BOXF_VISIBLE) == 0 || !hides_beneath(b) || !shows_around(area, &b->bounds, &shown))
+            continue;
+        int64_t left = rect_empty(&shown) ? 0 : (int64_t)(shown.x1 - shown.x0) * (shown.y1 - shown.y0);
+        if (left < best_area)
+        {
+            best = (int32_t)i;
+            best_area = left;
+            *visible = shown;
+        }
+    }
+    return best;
+}
+
 static void redraw(struct libdmview* v, int32_t target, const rect_t* area)
 {
     rect_t screen = { 0, 0, v->surface_w, v->surface_h };
@@ -600,16 +688,24 @@ static void redraw(struct libdmview* v, int32_t target, const rect_t* area)
     if (target == ROOT)
     {
         /* Everything is executed again (only `area` is drawn into) */
+        rect_t clip = rect_and(screen, area), shown;
+        for (uint32_t i = 0; i < v->box_count; i++)
+            v->boxes[i].flags &= (uint8_t)~(BOXF_VISIBLE | BOXF_DIRTY);
+        int32_t occluder = find_occluder(v, &clip, &shown);
         for (uint32_t i = 0; i < v->box_count; i++)
             v->boxes[i].flags &= (uint8_t)~(BOXF_VISIBLE | BOXF_DIRTY);
         memset(v->deps, 0, (v->box_count + 1U) * v->dep_words * sizeof(uint32_t));
+        v->depth = 0;
         f->ox = 0;
         f->oy = 0;
-        f->clip = rect_and(screen, area);
+        f->clip = (occluder >= 0) ? shown : clip;
         f->view_clip = screen;
         f->box = ROOT;
         f->alpha = 255u;
+        v->occluder = occluder;
+        v->occluder_clip = clip;
         run(v, v->entry * DMV_CODE_WORD, false);
+        v->occluder = -1;
         return;
     }
 
