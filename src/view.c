@@ -179,8 +179,9 @@ static void free_view(struct libdmview* v)
         for (uint32_t i = 0; i < v->font_count; i++)
             font_release(&v->fonts[i]);
     }
+    images_free_slots(v);
     void* blocks[] = { v->code, v->strings, v->vars, v->fonts, v->boxes, v->items, v->gradients, v->stops,
-                       v->ints, v->strs, v->deps, v->goto_path, v->goto_taken };
+                       v->ints, v->strs, v->deps, v->goto_path, v->goto_taken, v->dir };
     for (size_t i = 0; i < sizeof(blocks) / sizeof(blocks[0]); i++)
     {
         if (blocks[i] != NULL)
@@ -391,7 +392,7 @@ static int load_tables(struct libdmview* v, const dmv_input_t* in, const uint8_t
     if ((v->deps = Dmod_Malloc(deps_size)) == NULL)
         return -ENOMEM;
     memset(v->deps, 0, deps_size);
-    return 0;
+    return (images_slots(v) == 0) ? 0 : -ENOMEM;
 }
 
 dmod_libdmview_api_declaration(1.0, libdmview_t, _open_input, ( const dmv_input_t* input, int* status ))
@@ -482,6 +483,14 @@ dmod_libdmview_api_declaration(1.0, libdmview_t, _open, ( const char* path, int*
     input.size = (uint32_t)size;
     libdmview_t v = libdmview_open_input(&input, status);
     Dmod_FileClose(file);
+
+    /* Relative image paths start in the view's directory */
+    const char* slash = strrchr(path, '/');
+    if (v != NULL && slash != NULL && (v->dir = Dmod_Malloc((size_t)(slash - path) + 1U)) != NULL)
+    {
+        memcpy(v->dir, path, (size_t)(slash - path));
+        v->dir[slash - path] = '\0';
+    }
     return v;
 }
 
@@ -563,12 +572,15 @@ int dmod_init(const Dmod_Config_t* Config)
 {
     (void)Config;
     int ret = claims_init();
-    return (ret == 0) ? fonts_init() : ret;
+    if (ret == 0)
+        ret = fonts_init();
+    return (ret == 0) ? images_init() : ret;
 }
 
 int dmod_deinit(void)
 {
     claims_deinit();
     fonts_deinit();
+    images_deinit();
     return 0;
 }

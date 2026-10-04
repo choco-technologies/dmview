@@ -1,0 +1,15 @@
+; Icons: the coverage of an image painted with a color or a gradient, on a
+; 64x48 surface - libdmview_test.c writes the image files next to the view
+.view   icons
+.entry  draw
+
+.gradient ramp, LINEAR, 90, #000000, #FFFFFF
+
+draw:
+        FILL    #000000
+        ICON    0, 0, 16, 16, "mask.dmvi", #FF0000, LEFT|TOP    ; A8 4x4 at 0, 0
+        ICON    16, 0, 16, 16, "a4.dmvi", #00FF00, LEFT|TOP     ; A4 3x2 at 16, 0
+        ICON    32, 0, 16, 16, "argb.dmvi", #0000FF, LEFT|TOP   ; its alpha
+        ICON    0, 16, 64, 4, "bar.dmvi", ramp, LEFT|TOP        ; A8 64x4, black to white
+        ICON    48, 0, 16, 16, "rgb565.dmvi", #FFFF00, CENTER|MIDDLE    ; opaque: a square
+        RET

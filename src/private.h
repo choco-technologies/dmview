@@ -155,6 +155,34 @@ typedef struct
     uint8_t             scale;              /* Magnification of the built-in font */
 } font_t;
 
+/* ---- Images ---- */
+
+/** An image file (.dmvi), loaded once and shared by every view that shows it. */
+typedef struct image
+{
+    struct image*       next;
+    char*               path;
+    uint32_t            refs;
+    bool                stale;              /* RELOAD: no longer found, freed by its last user */
+    bool                opaque;             /* Every pixel opaque: copied without blending */
+    uint8_t             format;             /* dmvi_format_t */
+    uint16_t            width, height;
+    uint32_t            stride, alpha_stride;
+    uint8_t*            data;               /* The whole file */
+    const uint8_t*      pixels;
+    const uint8_t*      alpha;              /* RGB565A8 */
+    uint32_t*           palette;            /* I8: DMVI_PALETTE_MAX colors, the missing ones transparent */
+} image_t;
+
+/** What one IMAGE / ICON instruction of a view shows. */
+typedef struct
+{
+    uint32_t            pc;                 /* Byte offset of the instruction */
+    char*               source;             /* Its path operand as last drawn, NULL before */
+    image_t*            image;              /* NULL: not loadable */
+    int32_t             box;                /* Box it was last drawn in */
+} image_slot_t;
+
 /** A box at run time. Geometry is what its last draw found. */
 typedef struct
 {
@@ -250,6 +278,11 @@ struct libdmview
 
     char*           goto_path;
     char*           goto_taken;
+
+    /* Images */
+    char*           dir;            /* Directory of the view file - relative image paths start there */
+    uint32_t        slot_count;
+    image_slot_t*   slots;          /* One per IMAGE / ICON, by pc ascending */
 };
 
 /* validate.c */
@@ -265,6 +298,18 @@ void            fonts_deinit(void);
 void            font_resolve(const char* spec, font_t* font);
 void            font_release(font_t* font);
 const uint8_t*  font_glyph(const font_file_t* f, uint32_t codepoint);   /* dmvf_glyph_t, NULL if none */
+
+/* image.c */
+int             images_init(void);
+void            images_deinit(void);
+int             images_slots(struct libdmview* v);         /* Builds v->slots from the code */
+void            images_free_slots(struct libdmview* v);
+const image_t*  images_get(struct libdmview* v, uint32_t pc, const char* source);   /* NULL: nothing to draw */
+void            images_reload(struct libdmview* v, const char* source);
+void            draw_image(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h,
+                           const image_t* image, uint32_t alpha, uint8_t align);
+void            draw_icon(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h,
+                          const image_t* image, const paint_t* paint, uint8_t align);
 
 /* view.c */
 const char* view_string(const struct libdmview* v, uint32_t index);

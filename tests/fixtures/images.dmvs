@@ -1,0 +1,35 @@
+; Images (.dmvi) on a 64x48 surface - libdmview_test.c writes the image
+; files next to the view and checks the pixels
+.view   images
+.entry  draw
+
+.var    $photo, str[24], "rgb565.dmvi"
+
+draw:
+        FILL    #000000
+        IMAGE   0, 0, 16, 16, "rgb565.dmvi", LEFT|TOP           ; 4x4 at 0, 0
+        IMAGE   16, 0, 16, 16, "argb.dmvi", CENTER|MIDDLE       ; 4x4 at 22, 6
+        IMAGE   32, 0, 16, 16, "i8.dmvi", RIGHT|BOTTOM          ; 4x4 at 44, 12
+        IMAGE   48, 0, 16, 16, "rgb565a8.dmvi", LEFT|TOP        ; 2x2 at 48, 0
+        IMAGE   0, 16, 2, 2, "rgb565.dmvi", LEFT|TOP            ; clipped to 2x2
+
+        BOX     @dynamic, 16, 16, 16, 16
+        IMAGE   0, 0, 16, 16, $photo, LEFT|TOP
+        END
+
+        BOX     @faded, 32, 16, 16, 16
+        OPACITY 128
+        IMAGE   0, 0, 16, 16, "rgb565.dmvi", LEFT|TOP
+        END
+
+        IMAGE   48, 16, 16, 16, "missing.dmvi", LEFT|TOP        ; nothing
+        IMAGE   0, 32, 16, 16, "mask.dmvi", LEFT|TOP            ; a mask: only ICON draws it
+
+        BOX     @button, 48, 32, 16, 16
+        ON      CLICK, reload
+        END
+        RET
+
+reload:
+        RELOAD  "rgb565.dmvi"
+        RET

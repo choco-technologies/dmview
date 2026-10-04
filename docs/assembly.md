@@ -409,6 +409,7 @@ that uses it.
 | 0x17 | `RING` | `x, y, r, t, color` | Circle outline |
 | 0x18 | `TEXT` | `x, y, w, h, str, font, color, align` | Text laid out in the rectangle x/y/w/h |
 | 0x19 | `IMAGE` | `x, y, w, h, str, align` | Image from the file `str` (path, literal or string variable) placed in the rectangle x/y/w/h - see [Images](#images) |
+| 0x1A | `ICON` | `x, y, w, h, str, color, align` | The image's coverage (alpha) painted with `color` or a gradient - a mask, see [Icons](#icons) |
 
 `TEXT` alignment flags: horizontal `LEFT` (default), `CENTER`, `RIGHT`;
 vertical `TOP` (default), `MIDDLE`, `BOTTOM`; `WRAP` breaks lines at spaces
@@ -521,7 +522,7 @@ and the **path** of the file; the path is a string like any other - a literal
 in the string table or a string variable:
 
 ```
-        IMAGE   8, 8, 64, 64, "/flash/icons/wifi.dmvi", CENTER|MIDDLE
+        IMAGE   8, 8, 64, 64, "icons/wifi.dmvi", CENTER|MIDDLE
         IMAGE   0, 40, 480, 200, $photo, CENTER|MIDDLE     ; dynamic source
 ```
 
@@ -529,55 +530,66 @@ in the string table or a string variable:
   on the image: nothing moves when it arrives. The image is placed in the
   rectangle by the alignment flags (`LEFT`/`CENTER`/`RIGHT`,
   `TOP`/`MIDDLE`/`BOTTOM`) and clipped to it; scaling is left for later.
-- **Loading is asynchronous.** The first time a path is drawn, `libdmview` starts
-  loading it in the background and draws nothing in its place; when the
-  image is ready, the boxes that show it are invalidated and redrawn. A
-  slow file (an SD card, the network) never blocks drawing or input. A file
-  that cannot be loaded or decoded stays empty and is logged.
+- **Paths**: a path starting with `/` is used as it is; any other is
+  relative to the directory of the view file - images installed next to a
+  view (`${views_dir}` in a `.dmr`) are found by their names.
+- **Loading**: the first time a path is drawn, the file is read into memory
+  and checked; a file that cannot be loaded stays empty and is logged once
+  (until the path changes or `RELOAD`). An empty path shows nothing. Loading
+  is synchronous for now: a slow source (an SD card, the network) delays
+  that one draw.
 - **Dynamic sources**: with a string variable as the source, setting the
-  variable to another path loads the new image and redraws - from a
-  handler, or from outside through an `env:` binding. `RELOAD` reads a file
-  again when its content changed under the same path (e.g. a camera
-  snapshot).
-- **Memory**: decoded images are kept (in SDRAM where there is one) per path
-  as long as a shown view uses them, and shared between boxes.
-
-### Where the file comes from
-
-`libdmview` opens images only through the dmod file system (`Dmod_FileOpen`),
-so the source is whatever is mounted: `/flash`, an SD card, a ramfs. An image
-from a **link** therefore needs no support in `libdmview` itself - it needs a
-file system that maps URLs to paths, e.g. a dmfsi module mounted at `/http`
-that fetches `/http/example.com/cam.jpg` from the network. Every other module
-gets network files the same way. (Alternatively a downloader module stores
-the file in a ramfs and sets the variable with its path.)
+  variable to another path loads the new image and redraws only the boxes
+  that show it - from a handler, or from outside through an `env:`
+  binding. `RELOAD` reads a file again when its content changed under the
+  same path (e.g. a camera snapshot) and redraws where the view shows it.
+- **Memory**: a loaded image is kept per path as long as a view shows it,
+  and shared between instructions, views and displays. Images are drawn
+  straight from it: an opaque image in the screen's pixel format is copied
+  row by row, the others are blended pixel by pixel; a translucent box
+  (`OPACITY`) fades its images too.
 
 ### Formats
 
-- **Built-in: raw images** (`.dmvi`) - a small header (width, height,
-  `dmdrvi_gfx_pixel_format_t`, stride) followed by the pixels. `libdmview` copies
-  them as they are, with no decoding, so this is the fastest format. For
-  images known at compile time (literal paths), `todmv` can convert the
-  source files (PNG, BMP, ...) into `.dmvi` files next to the `.dmv` - they
-  stay separate files, not embedded in the view.
-- **Other formats are plugins**: separate dmf modules implementing an image
-  decoder DIF. `libdmview` asks the loaded decoders in turn
-  (`Dmod_GetNextDifModule()`) which of them recognizes the file, and lets it
-  decode the image into the framebuffer's pixel format. The firmware
-  contains the decoders the user puts into it (e.g. `dmbmp`, `dmpng`) - none,
-  one or several. A file no loaded decoder knows stays empty and is logged.
+`libdmview` reads one format: **`.dmvi`**
+([image-format.md](image-format.md)) - a small header followed by the
+pixels in one of a few raw formats (RGB565, ARGB8888, RGB565 with an alpha
+plane, 8-bit palette, 8- and 4-bit masks), optionally packed with dmod's
+compression (FastLZ, as `.dmfc` modules) and unpacked once when it is
+loaded. There is nothing to decode, so drawing an image costs no more than
+copying it, and `libdmview` stays small.
 
-The decoder DIF (draft):
+Every other format (PNG, JPEG, BMP, ...) is converted into `.dmvi` by
+**todmvi**, a dmf application with decoders as plugins (DIF modules - one
+per source format):
 
-| Function | Meaning |
-|----------|---------|
-| `_probe(const void* head, size_t size)` | True if the decoder recognizes the file from its first bytes |
-| `_get_info(file, uint16_t* width, uint16_t* height)` | Size of the image |
-| `_decode(file, void* dst, uint32_t stride, dmdrvi_gfx_pixel_format_t format)` | Decode into a buffer in the given pixel format |
+- **at build time**: `dmod` converts the images found in
+  `DMOD_FIXTURES_PATHS` with todmvi on the build host, like the views with
+  todmv, so the device only gets `.dmvi` files;
+- **on a device** that has todmvi and the decoders it needs (a target with
+  more memory, dmod-os): e.g. a photo viewer converts a JPEG from an SD card
+  into a `.dmvi` in a ramfs and sets the image variable to its path.
 
-The DIF belongs to a small interface module (like dmdrvi for drivers or dmfsi
-for file systems), so decoders and `libdmview` depend only on it, not on each
-other.
+`libdmview` itself never depends on a decoder.
+
+### Icons
+
+`ICON` draws an image as a **mask**: only its coverage counts - the alpha of
+every pixel (an A8 / A4 mask, or the alpha of any other format; an opaque
+image covers all of its rectangle) - painted with a color or a gradient,
+like `TEXT`:
+
+```
+.gradient accent, LINEAR, 90, #00A0FF, #0060FF
+
+        ICON    8, 8, 24, 24, "icons/wifi.dmvi", #FFFFFF, CENTER|MIDDLE
+        ICON    40, 8, 24, 24, "icons/wifi.dmvi", accent, CENTER|MIDDLE
+        ICON    72, 8, 24, 24, "icons/wifi.dmvi", $tint, CENTER|MIDDLE     ; a color variable
+```
+
+One mask then fits every theme and every state; an A4 mask takes half a
+byte per pixel. A gradient is placed on the rectangle x/y/w/h. `IMAGE`
+draws only images with colors - a mask shows nothing there.
 
 ## dmenv change listener
 

@@ -765,6 +765,262 @@ DMOD_TEST_STEP(libdmview_claims_stack_per_display)
     DMOD_TEST_EXPECT_EQ(libdmview_claim(NULL, "/a.dmv", &a), -ENODEV);
 }
 
+/* ---- Images ---- */
+
+/* A .dmvi file (docs/image-format.md): `rows` rows of `row` bytes of
+ * pixels, stored `stride` apart, then the alpha plane, then the palette */
+static bool write_image(const char* name, uint8_t format, uint16_t w, uint16_t h, const void* pixels, uint32_t row,
+                        uint32_t stride, const uint8_t* alpha, const uint32_t* palette, uint16_t colors)
+{
+    static uint8_t file[4096];
+    uint32_t at = sizeof(dmvi_header_t), alpha_at = 0, alpha_stride = 0, palette_at = 0;
+
+    memset(file, 0, sizeof(file));
+    for (uint32_t y = 0; y < h; y++)
+        memcpy(file + at + y * stride, (const uint8_t*)pixels + y * row, row);
+    uint32_t end = (at + stride * h + 3U) & ~3U;
+    if (alpha != NULL)
+    {
+        alpha_at = end;
+        alpha_stride = (w + 3U) & ~3U;
+        for (uint32_t y = 0; y < h; y++)
+            memcpy(file + alpha_at + y * alpha_stride, alpha + y * w, w);
+        end = alpha_at + alpha_stride * h;
+    }
+    if (palette != NULL)
+    {
+        palette_at = end;
+        memcpy(file + palette_at, palette, colors * 4U);
+        end = palette_at + colors * 4U;
+    }
+
+    dmvi_header_t hd;
+    memset(&hd, 0, sizeof(hd));
+    memcpy(hd.magic, "DMVI", 4);
+    hd.version_major = DMVI_VERSION_MAJOR;
+    hd.version_minor = DMVI_VERSION_MINOR;
+    hd.file_size = end;
+    hd.width = w;
+    hd.height = h;
+    hd.format = format;
+    hd.palette_count = (palette != NULL) ? colors : 0;
+    hd.stride = stride;
+    hd.pixels = at;
+    hd.alpha_stride = alpha_stride;
+    hd.alpha = alpha_at;
+    hd.palette = palette_at;
+    hd.unpacked_size = end - (uint32_t)sizeof(hd);
+    memcpy(file, &hd, sizeof(hd));
+
+    void* f = Dmod_FileOpen(name, "wb");
+    if (f == NULL)
+        return false;
+    bool ok = Dmod_FileWrite(file, 1, end, f) == end;
+    Dmod_FileClose(f);
+    return ok;
+}
+
+/* Compress what follows the header of an image file with dmod's compression `name` */
+static bool compress_image(const char* path, const char* name)
+{
+    static uint8_t file[4096], packed[4096 + 512];
+    void* f = Dmod_FileOpen(path, "rb");
+    if (f == NULL)
+        return false;
+    size_t size = Dmod_FileRead(file, 1, sizeof(file), f);
+    Dmod_FileClose(f);
+
+    dmvi_header_t hd;
+    memcpy(&hd, file, sizeof(hd));
+    size_t n = Dmod_Compression_Pack("fastlz", 1, packed, sizeof(packed), file + sizeof(hd), size - sizeof(hd));
+    if (n == 0)
+        return false;
+    memset(hd.compression, 0, sizeof(hd.compression));
+    strcpy(hd.compression, name);
+    hd.file_size = (uint32_t)(sizeof(hd) + n);
+    if ((f = Dmod_FileOpen(path, "wb")) == NULL)
+        return false;
+    bool ok = Dmod_FileWrite(&hd, 1, sizeof(hd), f) == sizeof(hd) && Dmod_FileWrite(packed, 1, n, f) == n;
+    Dmod_FileClose(f);
+    return ok;
+}
+
+static bool write_rgb565(uint16_t color)
+{
+    uint16_t px[16];
+    for (int i = 0; i < 16; i++)
+        px[i] = color;
+    px[1 * 4 + 1] = 0x07E0;                                     /* (1, 1) green */
+    return write_image(FIXTURE("rgb565.dmvi"), DMVI_FORMAT_RGB565, 4, 4, px, 8, 8, NULL, NULL, 0);
+}
+
+static bool write_images(void)
+{
+    uint32_t argb[16];
+    for (int i = 0; i < 16; i++)
+        argb[i] = (i % 4 < 2) ? 0x80FFFFFFu : 0xFF0000FFu;     /* 50 % white | blue */
+    uint8_t i8[16] = { 0, 0, 0, 0,  1, 1, 1, 1,  0, 0, 0, 0,  0, 0, 0, 5 };
+    uint32_t palette[2] = { 0xFF00FF00u, 0x00000000u };         /* green, transparent - 5 is missing */
+    uint16_t white[4] = { 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF };
+    uint8_t white_alpha[4] = { 255, 0, 128, 255 };
+    uint8_t mask[16];
+    memset(mask, 255, sizeof(mask));
+    mask[0] = 128;
+    uint8_t a4[4] = { 0xF0, 0x08, 0x0F, 0x0F };                 /* 3x2: 0 15 8 / 15 0 15 */
+    uint8_t bar[64 * 4];
+    memset(bar, 255, sizeof(bar));
+
+    return write_rgb565(0xF800) &&
+           write_image(FIXTURE("argb.dmvi"), DMVI_FORMAT_ARGB8888, 4, 4, argb, 16, 16, NULL, NULL, 0) &&
+           write_image(FIXTURE("i8.dmvi"), DMVI_FORMAT_I8, 4, 4, i8, 4, 4, NULL, palette, 2) &&
+           write_image(FIXTURE("rgb565a8.dmvi"), DMVI_FORMAT_RGB565A8, 2, 2, white, 4, 4, white_alpha, NULL, 0) &&
+           write_image(FIXTURE("mask.dmvi"), DMVI_FORMAT_A8, 4, 4, mask, 4, 4, NULL, NULL, 0) &&
+           write_image(FIXTURE("a4.dmvi"), DMVI_FORMAT_A4, 3, 2, a4, 2, 2, NULL, NULL, 0) &&
+           write_image(FIXTURE("bar.dmvi"), DMVI_FORMAT_A8, 64, 4, bar, 64, 64, NULL, NULL, 0);
+}
+
+DMOD_TEST_STEP(libdmview_draws_images)
+{
+    DMOD_TEST_EXPECT_TRUE(write_images());
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("images.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+
+    DMOD_TEST_EXPECT_EQ(px(0, 0), 0xFFFF0000u);                 /* RGB565 */
+    DMOD_TEST_EXPECT_EQ(px(1, 1), 0xFF00FF00u);
+    DMOD_TEST_EXPECT_EQ(px(3, 3), 0xFFFF0000u);
+    DMOD_TEST_EXPECT_EQ(px(4, 0), 0xFF000000u);
+    DMOD_TEST_EXPECT_EQ(px(21, 6), 0xFF000000u);                /* ARGB8888, centered */
+    DMOD_TEST_EXPECT_TRUE(near(px(22, 6), 0xFF808080u, 1));
+    DMOD_TEST_EXPECT_EQ(px(24, 9), 0xFF0000FFu);
+    DMOD_TEST_EXPECT_EQ(px(26, 6), 0xFF000000u);
+    DMOD_TEST_EXPECT_EQ(px(44, 12), 0xFF00FF00u);               /* I8, bottom right */
+    DMOD_TEST_EXPECT_EQ(px(44, 13), 0xFF000000u);               /* transparent color */
+    DMOD_TEST_EXPECT_EQ(px(46, 15), 0xFF00FF00u);
+    DMOD_TEST_EXPECT_EQ(px(47, 15), 0xFF000000u);               /* not in the palette */
+    DMOD_TEST_EXPECT_EQ(px(43, 15), 0xFF000000u);
+    DMOD_TEST_EXPECT_EQ(px(48, 0), 0xFFFFFFFFu);                /* RGB565A8 */
+    DMOD_TEST_EXPECT_EQ(px(49, 0), 0xFF000000u);
+    DMOD_TEST_EXPECT_TRUE(near(px(48, 1), 0xFF808080u, 1));
+    DMOD_TEST_EXPECT_EQ(px(49, 1), 0xFFFFFFFFu);
+    DMOD_TEST_EXPECT_EQ(px(0, 17), 0xFFFF0000u);                /* clipped to its rectangle */
+    DMOD_TEST_EXPECT_EQ(px(1, 17), 0xFF00FF00u);
+    DMOD_TEST_EXPECT_EQ(px(2, 16), 0xFF000000u);
+    DMOD_TEST_EXPECT_EQ(px(0, 18), 0xFF000000u);
+    DMOD_TEST_EXPECT_EQ(px(16, 16), 0xFFFF0000u);               /* from a variable */
+    DMOD_TEST_EXPECT_TRUE(near(px(32, 16), 0xFF800000u, 1));   /* in a box at 50 % */
+    DMOD_TEST_EXPECT_TRUE(near(px(33, 17), 0xFF008000u, 1));
+    DMOD_TEST_EXPECT_EQ(px(48, 16), 0xFF000000u);               /* no such file */
+    DMOD_TEST_EXPECT_EQ(px(0, 32), 0xFF000000u);                /* a mask */
+
+    /* Another path in the variable: the new image, only in its box */
+    libdmview_rect_t changed;
+    DMOD_TEST_EXPECT_EQ(libdmview_set_string(g_view, "photo", "argb.dmvi"), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, &changed), 1);
+    DMOD_TEST_EXPECT_TRUE(rect_is(&changed, 16, 16, 16, 16));
+    DMOD_TEST_EXPECT_TRUE(near(px(16, 16), 0xFF808080u, 1));
+    DMOD_TEST_EXPECT_EQ(px(18, 16), 0xFF0000FFu);
+    DMOD_TEST_EXPECT_EQ(libdmview_set_string(g_view, "photo", ""), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    DMOD_TEST_EXPECT_EQ(px(16, 16), 0xFF000000u);               /* no path, no image */
+
+    /* RELOAD: the file changed, everything that shows it is redrawn */
+    DMOD_TEST_EXPECT_TRUE(write_rgb565(0x001F));
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 0);
+    DMOD_TEST_EXPECT_EQ(px(0, 0), 0xFFFF0000u);                 /* loaded once, kept */
+    touch(1, 50, 40, 0);
+    touch(0, 50, 40, 10);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    DMOD_TEST_EXPECT_EQ(px(0, 0), 0xFF0000FFu);
+    DMOD_TEST_EXPECT_EQ(px(1, 1), 0xFF00FF00u);
+    DMOD_TEST_EXPECT_TRUE(near(px(32, 16), 0xFF000080u, 1));
+
+    /* RGB565: the opaque image is copied */
+    libdmview_invalidate(g_view);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s16, NULL), 1);
+    DMOD_TEST_EXPECT_EQ(px16(0, 0), 0x001F);
+    DMOD_TEST_EXPECT_EQ(px16(1, 1), 0x07E0);
+    DMOD_TEST_EXPECT_EQ(px16(24, 9), 0x001F);
+    DMOD_TEST_EXPECT_EQ(px16(44, 12), 0x07E0);
+    DMOD_TEST_EXPECT_EQ(px16(49, 0), 0x0000);
+    DMOD_TEST_EXPECT_EQ(px16(49, 1), 0xFFFF);
+    DMOD_TEST_EXPECT_TRUE(write_rgb565(0xF800));
+}
+
+DMOD_TEST_STEP(libdmview_rejects_broken_images)
+{
+    /* The pixels run past the end of the file: not shown */
+    uint16_t red[4] = { 0xF800, 0xF800, 0xF800, 0xF800 };
+    DMOD_TEST_EXPECT_TRUE(write_image(FIXTURE("rgb565.dmvi"), DMVI_FORMAT_RGB565, 2, 2, red, 4, 4, NULL, NULL, 0));
+    void* f = Dmod_FileOpen(FIXTURE("rgb565.dmvi"), "r+b");
+    DMOD_TEST_EXPECT_TRUE(f != NULL);
+    if (f != NULL)
+    {
+        uint8_t height[2] = { 200, 0 };
+        (void)Dmod_FileSeek(f, 14, DMOD_SEEK_SET);
+        DMOD_TEST_EXPECT_EQ((int)Dmod_FileWrite(height, 1, 2, f), 2);
+        Dmod_FileClose(f);
+    }
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("images.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    DMOD_TEST_EXPECT_EQ(px(0, 0), 0xFF000000u);
+    DMOD_TEST_EXPECT_TRUE(near(px(22, 6), 0xFF808080u, 1));    /* the others are */
+    DMOD_TEST_EXPECT_TRUE(write_rgb565(0xF800));
+}
+
+DMOD_TEST_STEP(libdmview_unpacks_compressed_images)
+{
+    if (!Dmod_Compression_IsSupported("fastlz"))
+    {
+        Dmod_Printf("    no fastlz in this dmod - skipped\n");
+        return;
+    }
+    DMOD_TEST_EXPECT_TRUE(write_images());
+    DMOD_TEST_EXPECT_TRUE(compress_image(FIXTURE("argb.dmvi"), "fastlz"));
+    DMOD_TEST_EXPECT_TRUE(compress_image(FIXTURE("i8.dmvi"), "fastlz"));
+    DMOD_TEST_EXPECT_TRUE(compress_image(FIXTURE("rgb565.dmvi"), "nolz"));     /* unknown: not shown */
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("images.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    DMOD_TEST_EXPECT_TRUE(near(px(22, 6), 0xFF808080u, 1));
+    DMOD_TEST_EXPECT_EQ(px(24, 9), 0xFF0000FFu);
+    DMOD_TEST_EXPECT_EQ(px(44, 12), 0xFF00FF00u);
+    DMOD_TEST_EXPECT_EQ(px(44, 13), 0xFF000000u);
+    DMOD_TEST_EXPECT_EQ(px(0, 0), 0xFF000000u);
+    DMOD_TEST_EXPECT_TRUE(write_images());
+}
+
+DMOD_TEST_STEP(libdmview_draws_icons)
+{
+    DMOD_TEST_EXPECT_TRUE(write_images());
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("icons.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+
+    DMOD_TEST_EXPECT_TRUE(near(px(0, 0), 0xFF800000u, 1));     /* A8, coverage 128 */
+    DMOD_TEST_EXPECT_EQ(px(1, 0), 0xFFFF0000u);
+    DMOD_TEST_EXPECT_EQ(px(4, 0), 0xFF000000u);
+    DMOD_TEST_EXPECT_EQ(px(16, 0), 0xFF000000u);                /* A4: 0 15 8 / 15 0 15 */
+    DMOD_TEST_EXPECT_EQ(px(17, 0), 0xFF00FF00u);
+    DMOD_TEST_EXPECT_TRUE(near(px(18, 0), 0xFF008800u, 1));
+    DMOD_TEST_EXPECT_EQ(px(16, 1), 0xFF00FF00u);
+    DMOD_TEST_EXPECT_EQ(px(17, 1), 0xFF000000u);
+    DMOD_TEST_EXPECT_EQ(px(18, 1), 0xFF00FF00u);
+    DMOD_TEST_EXPECT_EQ(px(19, 0), 0xFF000000u);
+    DMOD_TEST_EXPECT_TRUE(near(px(32, 0), 0xFF000080u, 1));    /* ARGB8888's alpha */
+    DMOD_TEST_EXPECT_EQ(px(34, 0), 0xFF0000FFu);
+    DMOD_TEST_EXPECT_TRUE(near(px(0, 16), 0xFF000000u, 4));    /* a gradient */
+    DMOD_TEST_EXPECT_TRUE(near(px(63, 19), 0xFFFFFFFFu, 4));
+    DMOD_TEST_EXPECT_TRUE(near(px(32, 17), 0xFF808080u, 6));
+    DMOD_TEST_EXPECT_EQ(px(54, 6), 0xFFFFFF00u);                /* RGB565: all covered */
+    DMOD_TEST_EXPECT_EQ(px(53, 6), 0xFF000000u);
+}
+
 /* ---- The example of docs/assembly.md on a 480x272 RGB565 screen ---- */
 
 #define DEMO_W  480

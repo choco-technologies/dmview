@@ -433,7 +433,27 @@ static void run(struct libdmview* v, uint32_t pc, bool box_region)
                 }
                 break;
             case DMV_OP_IMAGE:
-                /* Not supported yet - nothing is drawn in its place */
+                if (draw)
+                {
+                    const image_t* im = images_get(v, pc, vstr(v, insn, 4, OPOFF(IMAGE, 4)));
+                    if (im != NULL)
+                        draw_image(s, &f->clip, f->ox + v16(v, insn, 0, OPOFF(IMAGE, 0)),
+                                   f->oy + v16(v, insn, 1, OPOFF(IMAGE, 1)), v16(v, insn, 2, OPOFF(IMAGE, 2)),
+                                   v16(v, insn, 3, OPOFF(IMAGE, 3)), im, f->alpha, insn[3] & DMV_ALIGN_FLAGS_MASK);
+                }
+                break;
+            case DMV_OP_ICON:
+                if (draw)
+                {
+                    int32_t x = f->ox + v16(v, insn, 0, OPOFF(ICON, 0)), y = f->oy + v16(v, insn, 1, OPOFF(ICON, 1));
+                    int32_t w = v16(v, insn, 2, OPOFF(ICON, 2)), h = v16(v, insn, 3, OPOFF(ICON, 3));
+                    const image_t* im = images_get(v, pc, vstr(v, insn, 4, OPOFF(ICON, 4)));
+                    if (im != NULL)
+                    {
+                        paint_of(v, insn, 5, OPOFF(ICON, 5), &paint, x, y, w, h);
+                        draw_icon(s, &f->clip, x, y, w, h, im, &paint, insn[3] & DMV_ALIGN_FLAGS_MASK);
+                    }
+                }
                 break;
 
             /* ---- Variables ---- */
@@ -532,6 +552,9 @@ static void run(struct libdmview* v, uint32_t pc, bool box_region)
                               v16(v, insn, 2, OPOFF(SCROLLTO, 2)));
                 break;
             case DMV_OP_RELOAD:
+                if (!v->drawing)
+                    images_reload(v, vstr(v, insn, 0, OPOFF(RELOAD, 0)));
+                break;
             case DMV_OP_SETFOCUS:
                 break;
 

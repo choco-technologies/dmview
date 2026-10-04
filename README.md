@@ -133,7 +133,7 @@ Drawing is what a view does all the time, so:
 ### What is implemented
 
 Runtime level 1 of [docs/assembly.md](docs/assembly.md#runtime-capabilities):
-every instruction except `IMAGE` and `RELOAD` (no images yet), one contact
+every instruction, one contact
 (`PRESS`, `DRAG`, `LONG`, `RELEASE`, `CLICK`), `.init`, `.timer`, `.key`,
 `env:` variables, `GOTO`, `SIGNAL`, `EXEC`, `SCROLLTO`, translucent boxes
 (`OPACITY`). Text: antialiased,
@@ -142,7 +142,11 @@ proportional fonts from `.dmvf` files in `$DMVIEW_FONTS` - Roboto
 [tools/ttf2dmvf.py](tools/ttf2dmvf.py) - UTF-8; the built-in 8x8 font
 (public domain font8x8, `"builtin-N"`) for consoles and when a font file is
 missing ([docs/assembly.md](docs/assembly.md#fonts)). Linear and radial gradients paint any shape and text
-([docs/assembly.md](docs/assembly.md#gradients)). Not yet: images, scrolling by dragging, focus, several
+([docs/assembly.md](docs/assembly.md#gradients)). Images: `.dmvi` files
+([docs/image-format.md](docs/image-format.md)) - RGB565, ARGB8888, RGB565
+with alpha, 8-bit palette - drawn with `IMAGE`, masks (A8, A4) painted with
+a color or a gradient by `ICON`; other formats are converted by todmvi
+([docs/assembly.md](docs/assembly.md#images)). Not yet: scrolling by dragging, focus, several
 contacts and gestures. Pixel formats: RGB565, ARGB8888.
 
 ## Building
