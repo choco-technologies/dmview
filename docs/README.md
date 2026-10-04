@@ -10,6 +10,7 @@ display service.
 - **[assembly.md](assembly.md)** - `.dmvs` assembly: execution model, syntax, instruction set (drawing and input)
 - **[binary-format.md](binary-format.md)** - `.dmv` file layout: header, code, tables, validation
 - **[font-format.md](font-format.md)** - `.dmvf` font files: antialiased glyphs, made by `tools/ttf2dmvf.py`
+- **[image-format.md](image-format.md)** - `.dmvi` image files: raw pixels and masks, made by todmvi
 - **[api-reference.md](api-reference.md)** - libdmview: views, displays and claims
 
 ## Quick Reference

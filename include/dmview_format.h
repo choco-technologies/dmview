@@ -25,10 +25,10 @@
 
 /** Format version this header describes. */
 #define DMV_VERSION_MAJOR        0
-#define DMV_VERSION_MINOR        3
+#define DMV_VERSION_MINOR        4
 
 /** Header size: version 0.2 added the gradient tables at its end (0.3:
- * OPACITY, no change to the header). */
+ * OPACITY, 0.4: ICON - no change to the header). */
 #define DMV_HEADER_SIZE          96u
 #define DMV_HEADER_SIZE_0_1      80u
 
@@ -92,6 +92,7 @@ typedef enum
     DMV_OP_RING      = 0x17,
     DMV_OP_TEXT      = 0x18,
     DMV_OP_IMAGE     = 0x19,
+    DMV_OP_ICON      = 0x1A,
 
     /* Variables */
     DMV_OP_SET       = 0x40,
@@ -166,7 +167,7 @@ typedef enum
 #define DMV_SCROLL_BAR           0x04u
 #define DMV_SCROLL_FLAGS_MASK    0x07u
 
-/** TEXT / IMAGE alignment flags */
+/** TEXT / IMAGE / ICON alignment flags */
 #define DMV_ALIGN_LEFT           0x00u
 #define DMV_ALIGN_CENTER         0x01u
 #define DMV_ALIGN_RIGHT          0x02u
@@ -451,6 +452,57 @@ typedef struct
     uint8_t  reserved;          /**< 0 */
 } dmvf_glyph_t;
 
+/* ---- Image files (.dmvi, dmview's docs/image-format.md) ---- */
+
+/** Image file magic: "DMVI". */
+#define DMVI_MAGIC_0             'D'
+#define DMVI_MAGIC_1             'M'
+#define DMVI_MAGIC_2             'V'
+#define DMVI_MAGIC_3             'I'
+
+#define DMVI_VERSION_MAJOR       0
+#define DMVI_VERSION_MINOR       1
+
+/** Largest palette of an I8 image. */
+#define DMVI_PALETTE_MAX         256u
+
+/** Room for the compression name, its terminator included. */
+#define DMVI_COMPRESSION_SIZE    12u
+
+/** Pixel formats of an image. */
+typedef enum
+{
+    DMVI_FORMAT_RGB565 = 1,     /**< 16-bit 5:6:5, opaque */
+    DMVI_FORMAT_ARGB8888,       /**< 32-bit 0xAARRGGBB */
+    DMVI_FORMAT_RGB565A8,       /**< RGB565 pixels and a separate 8-bit alpha plane */
+    DMVI_FORMAT_I8,             /**< 8-bit indices into a palette of 0xAARRGGBB colors */
+    DMVI_FORMAT_A8,             /**< 8-bit coverage only - a mask, painted by ICON */
+    DMVI_FORMAT_A4,             /**< 4-bit coverage, two pixels per byte, the left one in the low nibble */
+} dmvi_format_t;
+
+/** Image file header, at offset 0. */
+typedef struct
+{
+    uint8_t  magic[4];          /**< "DMVI" */
+    uint16_t version_major;     /**< DMVI_VERSION_MAJOR */
+    uint16_t version_minor;     /**< DMVI_VERSION_MINOR */
+    uint32_t file_size;         /**< Size of the whole file */
+    uint16_t width;             /**< Pixels per row, > 0 */
+    uint16_t height;            /**< Rows, > 0 */
+    uint8_t  format;            /**< dmvi_format_t */
+    uint8_t  reserved;          /**< 0 */
+    uint16_t palette_count;     /**< I8: colors in the palette, 1 ... DMVI_PALETTE_MAX; else 0 */
+    uint32_t stride;            /**< Bytes from one row of `pixels` to the next */
+    uint32_t pixels;            /**< Offset of the pixels, 4-aligned */
+    uint32_t alpha_stride;      /**< RGB565A8: bytes from one alpha row to the next; else 0 */
+    uint32_t alpha;             /**< RGB565A8: offset of the alpha plane; else 0 */
+    uint32_t palette;           /**< I8: offset of uint32_t colors[palette_count], 4-aligned; else 0 */
+    char     compression[DMVI_COMPRESSION_SIZE];   /**< Dmod_Compression_* name of what follows the header
+                                                        ("fastlz"), zero-padded; empty: not compressed */
+    uint32_t unpacked_size;     /**< Bytes after the header once unpacked - the offsets above count in
+                                     the unpacked image */
+} dmvi_header_t;
+
 /** Result of dmv_validate(). */
 typedef enum
 {
@@ -542,6 +594,7 @@ static const dmv_opcode_info_t dmv_opcode_table[DMV_OPCODE_TABLE_SIZE] = {
     OP(DMV_OP_RING,     "RING",     DRAW,   5, 0, F_NONE,  false, V16, V16, V16, V16, COLOR),
     OP(DMV_OP_TEXT,     "TEXT",     DRAW,   7, 0, F_ALIGN, true,  V16, V16, V16, V16, STR, FONT, COLOR),
     OP(DMV_OP_IMAGE,    "IMAGE",    DRAW,   5, 0, F_ALIGN, true,  V16, V16, V16, V16, STR),
+    OP(DMV_OP_ICON,     "ICON",     DRAW,   6, 0, F_ALIGN, true,  V16, V16, V16, V16, STR, COLOR),
 
     OP(DMV_OP_SET,      "SET",      VARIA,  2, 0, F_NONE,  false, VAR, V32),
     OP(DMV_OP_ADD,      "ADD",      VARIA,  2, 0, F_NONE,  false, VAR, V32),
