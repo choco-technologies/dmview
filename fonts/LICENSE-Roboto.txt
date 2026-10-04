@@ -1,5 +1,5 @@
 The fonts in this directory (sans-*.dmvf) are Roboto, rendered into the
-dmview font format by tools/ttf2dmvf.py:
+dmview font format by todmvf:
 
     sans-N.dmvf       Roboto Regular, N pixels
     sans-bold-N.dmvf  Roboto Bold, N pixels

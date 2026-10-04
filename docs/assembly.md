@@ -391,8 +391,8 @@ when the view is shown:
 Font files ([font-format.md](font-format.md)) hold antialiased glyphs -
 proportional, any Unicode character of the BMP the file has, text is UTF-8.
 dmview ships Roboto as `sans-12` ... `sans-32` and `sans-bold-12` ...
-`sans-bold-32`; `tools/ttf2dmvf.py` makes further sizes and fonts from
-TrueType files. When the file is missing or is not a valid font, the
+`sans-bold-32`; todmvf makes further sizes and fonts from
+TrueType files ([font-format.md](font-format.md#making-a-font)). When the file is missing or is not a valid font, the
 built-in font is used, magnified by the spec's size / 8 - a view always
 shows its text. A file is loaded into memory once and shared by every view
 that uses it.

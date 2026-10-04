@@ -139,7 +139,7 @@ every instruction, one contact
 (`OPACITY`). Text: antialiased,
 proportional fonts from `.dmvf` files in `$DMVIEW_FONTS` - Roboto
 `sans-N` / `sans-bold-N` in [fonts/](fonts), more made with
-[tools/ttf2dmvf.py](tools/ttf2dmvf.py) - UTF-8; the built-in 8x8 font
+todmvf ([docs/font-format.md](docs/font-format.md#making-a-font)) - UTF-8; the built-in 8x8 font
 (public domain font8x8, `"builtin-N"`) for consoles and when a font file is
 missing ([docs/assembly.md](docs/assembly.md#fonts)). Linear and radial gradients paint any shape and text
 ([docs/assembly.md](docs/assembly.md#gradients)). Images: `.dmvi` files
@@ -187,7 +187,6 @@ dmview/
 │   └── libdmview_types.h
 ├── src/                    # libdmview: loading, interpreter, rasterizer, font, input, claims
 ├── fonts/                  # Roboto as .dmvf font files (Apache 2.0)
-├── tools/ttf2dmvf.py       # TrueType -> .dmvf
 ├── tests/                  # libdmview host tests and their views
 ├── apps/dmview/            # The display service
 ├── configs/                # dmview@.ini, dmview.rules

@@ -20,16 +20,32 @@ little-endian.
 
 ## Making a font
 
+Fonts are made by **todmvf**, a dmf application (dmf-get installs it):
+
 ```bash
-tools/ttf2dmvf.py Roboto-Regular.ttf 16 sans-16.dmvf
-tools/ttf2dmvf.py --chars 0x20-0x7E Roboto-Bold.ttf 24 title.dmvf    # ASCII only - smaller
+todmvf -o sans-16.dmvf Roboto-Regular.ttf 16
+todmvf -c 0x20-0x7E -o title.dmvf Roboto-Bold.ttf 24     # ASCII only - smaller
 ```
 
-`--chars` takes codepoint ranges; the default is printable ASCII, Latin-1
+`-c` takes codepoint ranges; the default is printable ASCII, Latin-1
 and Latin Extended-A (Polish, Czech, German, ... - about 320 glyphs; Roboto
 16 px: 21 KiB, ASCII only: 5.4 KiB). Each glyph is rendered 8 times larger and
 averaged down to the pixel grid, so the coverage follows the font's outlines
-rather than what grid fitting at small sizes makes of them. Needs Pillow.
+rather than what grid fitting at small sizes makes of them.
+
+At build time `dmod` converts the TrueType / OpenType fonts found in
+`DMOD_ASSETS_PATHS` with todmvf, like the views with todmv: the sizes are
+set in a `<font>.ini` next to the font - each section is one `.dmvf`:
+
+```ini
+; Roboto-Regular.ttf.ini
+[sans-16]
+size = 16
+
+[title]
+size  = 24
+chars = 0x20-0x7E
+```
 
 dmview's [fonts/](../fonts) are Roboto (Apache 2.0) made this way:
 `sans-N.dmvf` (Regular) and `sans-bold-N.dmvf` (Bold) for N = 12, 16, 20,
