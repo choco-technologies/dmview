@@ -4,3 +4,4 @@ $include https://github.com/choco-technologies/dmview/releases/download/vlatest/
 # Module entries with version placeholder - will be expanded by $version-available
 libdmview https://github.com/choco-technologies/dmview/releases/download/v<version>/libdmview-v<version>-<arch_name>.zip
 dmview https://github.com/choco-technologies/dmview/releases/download/v<version>/dmview-v<version>-<arch_name>.zip
+dmview_demo https://github.com/choco-technologies/dmview/releases/download/v<version>/dmview_demo-v<version>-<arch_name>.zip

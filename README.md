@@ -48,6 +48,15 @@ whatever the display's driver. The service:
    into the other buffer, so only what changed is ever drawn. A driver
    without `PRESENT` gets the drawing flushed.
 
+**Portrait and landscape.** A view whose `.size` fits the display only
+turned - a 272 x 480 view on a 480 x 272 display - is turned by 90 degrees
+clockwise (its top at the display's right edge). The service draws it into
+a buffer of its own orientation and copies what changed onto the screen
+turned; touches are turned back into the view's coordinates, so the view
+knows nothing of it. `$DMVIEW_ROTATION` (`0`, `90`, `180`, `270` -
+clockwise) turns every view on the display by that angle instead. The
+buffer costs one screen of memory.
+
 The display's name is its node name - the section name of its
 configuration: `[lcd]` is `/dev/lcd`, served by `dmview@lcd`. With two
 displays, name them after their purpose (`[main]`, `[status]`) and put
@@ -130,6 +139,15 @@ Drawing is what a view does all the time, so:
   radial one takes its square root from a table; on RGB565 opaque gradients
   are dithered, without bands.
 
+### Example
+
+[examples/dmodos](examples/dmodos) - a home screen with six applications for
+a 272 x 480 display, a design made in HTML and Tailwind CSS redrawn as one
+view: gradients, glass panels, Inter and icon fonts, an animation. The
+`dmview_demo` module shows it.
+
+![dmodOS](examples/dmodos/screens.png)
+
 ### What is implemented
 
 Runtime level 1 of [docs/assembly.md](docs/assembly.md#runtime-capabilities):
@@ -189,6 +207,8 @@ dmview/
 ├── fonts/                  # Roboto as .dmvf font files (Apache 2.0)
 ├── tests/                  # libdmview host tests and their views
 ├── apps/dmview/            # The display service
+├── apps/dmview_demo/       # Shows examples/dmodos while it runs
+├── examples/dmodos/        # A home screen with six applications (272 x 480) - see its README
 ├── configs/                # dmview@.ini, dmview.rules
 ├── docs/
 ├── CMakeLists.txt
