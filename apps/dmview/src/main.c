@@ -40,6 +40,8 @@ typedef struct
     libdmview_surface_t surface;    /* What the view draws into: the screen, or `turned` */
     uint16_t            rotation;   /* Clockwise degrees the view is turned by on the screen */
     void*               turned;     /* Buffer of a turned view */
+    libdmview_rect_t    last;       /* Turned and double buffered: what the previous frame changed */
+    bool                swap;       /* ... presented by swapping the buffers, without a copy */
     void*               touch;
     libdmview_display_t display;
     uint32_t            generation;
@@ -226,6 +228,8 @@ static void set_rotation(service_t* s, uint16_t rotation)
     }
     s->turned = turned.pixels;
     s->surface = turned;
+    s->last = (libdmview_rect_t){ 0, 0, turned.width, turned.height };    /* The other buffer holds nothing of it */
+    s->swap = s->info.buffer_count > 1;
     s->rotation = rotation;
     DMOD_LOG_INFO("dmview: views on %s are turned by %u degrees\n", s->name, (unsigned)rotation);
 }
@@ -285,6 +289,41 @@ static dmdrvi_gfx_rect_t copy_turned(service_t* s, const libdmview_rect_t* r)
         }
     }
     return area;
+}
+
+static libdmview_rect_t rect_union(const libdmview_rect_t* a, const libdmview_rect_t* b)
+{
+    if (a->w == 0 || a->h == 0)
+        return *b;
+    if (b->w == 0 || b->h == 0)
+        return *a;
+    int32_t x0 = (a->x < b->x) ? a->x : b->x, y0 = (a->y < b->y) ? a->y : b->y;
+    int32_t x1 = (a->x + a->w > b->x + b->w) ? a->x + a->w : b->x + b->w;
+    int32_t y1 = (a->y + a->h > b->y + b->h) ? a->y + a->h : b->y + b->h;
+    return (libdmview_rect_t){ (int16_t)x0, (int16_t)y0, (uint16_t)(x1 - x0), (uint16_t)(y1 - y0) };
+}
+
+/*
+ * A turned view on a double buffered display: the turned buffer always
+ * holds the whole frame, so the drawing buffer - two frames behind - is
+ * brought up to date from it where this frame and the previous one changed,
+ * and the buffers are swapped: the driver has nothing to copy (PRESENT copies
+ * what changed into the other buffer). Back to PRESENT if the driver cannot.
+ */
+static void swap_turned(service_t* s, const libdmview_rect_t* changed)
+{
+    libdmview_rect_t both = rect_union(changed, &s->last);
+    dmdrvi_gfx_rect_t area = copy_turned(s, &both);
+    void* pixels = NULL;
+    if (Dmod_Ioctl(s->gfx, DMDRVI_IOCTL_GFX_SWAP_BUFFERS, NULL) == 0 &&
+        Dmod_Ioctl(s->gfx, DMDRVI_IOCTL_GFX_GET_FRAMEBUFFER, &pixels) == 0 && pixels != NULL)
+    {
+        s->screen.pixels = pixels;
+        s->last = *changed;
+        return;
+    }
+    s->swap = false;
+    present(s, &area);
 }
 
 /* A touch on the screen, in the turned view's coordinates */
@@ -423,6 +462,11 @@ static void run(service_t* s)
         if (s->view != NULL && libdmview_render(s->view, &s->surface, &changed) > 0)
         {
             dmdrvi_gfx_rect_t area = { (uint16_t)changed.x, (uint16_t)changed.y, changed.w, changed.h };
+            if (s->turned != NULL && s->swap)
+            {
+                swap_turned(s, &changed);
+                continue;
+            }
             if (s->turned != NULL)
                 area = copy_turned(s, &changed);
             present(s, &area);
