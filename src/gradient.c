@@ -56,6 +56,35 @@ static uint32_t lerp(uint32_t a, uint32_t b, uint32_t w)
     return r;
 }
 
+/*
+ * RGB565 keeps 32 levels of red and blue, 64 of green: a gradient between
+ * two close colors would show as a few wide bands. Opaque gradients are
+ * written with ordered dithering instead - a threshold from a 4x4 Bayer
+ * matrix decides whether a pixel rounds up to the next level, so the bands
+ * become a fine pattern the eye averages into the colors between.
+ */
+static const uint8_t bayer[4][4] = {
+    {  0,  8,  2, 10 },
+    { 12,  4, 14,  6 },
+    {  3, 11,  1,  9 },
+    { 15,  7, 13,  5 },
+};
+
+/* Level of an 8-bit channel among `levels` - 1 steps, threshold (0 ... 254)
+ * below one step; levels 31 and 63 are 255/31 and 255/63 apart, not 8 and 4 */
+static inline uint32_t quantize(uint32_t v, uint32_t steps, uint32_t threshold)
+{
+    return (v * steps + threshold) / 255u;
+}
+
+static inline uint16_t dither565(uint32_t c, uint32_t t)
+{
+    uint32_t threshold = (t * 255u + 8u) / 16u;
+    return (uint16_t)((quantize((c >> 16) & 0xFFu, 31u, threshold) << 11) |
+                      (quantize((c >> 8) & 0xFFu, 63u, threshold) << 5) |
+                      quantize(c & 0xFFu, 31u, threshold));
+}
+
 static void build_palette(grad_t* g, const dmv_stop_t* stops, uint8_t format)
 {
     const dmv_stop_t* st = stops + g->first;
@@ -80,6 +109,25 @@ static void build_palette(grad_t* g, const dmv_stop_t* stops, uint8_t format)
         g->lut[i] = c;
     }
     g->lut_format = format;
+
+    /* Opaque on RGB565: every entry dithered once, so a pixel costs a lookup -
+     * [row of the Bayer matrix][entry][column]: a line of pixels reads one
+     * quarter of it (2 KiB), which stays in the data cache */
+    if (g->dither != NULL)
+        Dmod_Free(g->dither);
+    g->dither = NULL;
+    if (g->opaque && format == DMDRVI_GFX_PIXEL_FORMAT_RGB565 &&
+        (g->dither = Dmod_Malloc(GRADIENT_STEPS * DITHER_LEVELS * sizeof(uint16_t))) != NULL)
+    {
+        for (uint32_t i = 0; i < GRADIENT_STEPS; i++)
+        {
+            for (uint32_t row = 0; row < 4U; row++)
+            {
+                for (uint32_t col = 0; col < 4U; col++)
+                    g->dither[(row * GRADIENT_STEPS + i) * 4U + col] = dither565(g->lut[i], bayer[row][col]);
+            }
+        }
+    }
 }
 
 void paint_gradient(paint_t* paint, grad_t* grad, const dmv_stop_t* stops, uint8_t format,
@@ -149,35 +197,6 @@ uint32_t gradient_color(const paint_t* paint, uint8_t format, int32_t x, int32_t
     return faded(paint->grad->lut[pixel_index(paint, x, y)], paint->alpha);
 }
 
-/*
- * RGB565 keeps 32 levels of red and blue, 64 of green: a gradient between
- * two close colors would show as a few wide bands. Opaque gradients are
- * written with ordered dithering instead - a threshold from a 4x4 Bayer
- * matrix decides whether a pixel rounds up to the next level, so the bands
- * become a fine pattern the eye averages into the colors between.
- */
-static const uint8_t bayer[4][4] = {
-    {  0,  8,  2, 10 },
-    { 12,  4, 14,  6 },
-    {  3, 11,  1,  9 },
-    { 15,  7, 13,  5 },
-};
-
-/* Level of an 8-bit channel among `levels` - 1 steps, threshold (0 ... 254)
- * below one step; levels 31 and 63 are 255/31 and 255/63 apart, not 8 and 4 */
-static inline uint32_t quantize(uint32_t v, uint32_t steps, uint32_t threshold)
-{
-    return (v * steps + threshold) / 255u;
-}
-
-static inline uint16_t dither565(uint32_t c, uint32_t t)
-{
-    uint32_t threshold = (t * 255u + 8u) / 16u;
-    return (uint16_t)((quantize((c >> 16) & 0xFFu, 31u, threshold) << 11) |
-                      (quantize((c >> 8) & 0xFFu, 63u, threshold) << 5) |
-                      quantize(c & 0xFFu, 31u, threshold));
-}
-
 /* All pixels of the span in one palette color */
 static void solid(const libdmview_surface_t* s, const paint_t* paint, int32_t y, int32_t x0, int32_t x1, uint32_t index)
 {
@@ -190,7 +209,10 @@ static void solid(const libdmview_surface_t* s, const paint_t* paint, int32_t y,
     }
     /* Dithered: the line's pattern repeats every 4 pixels */
     const uint8_t* t = bayer[y & 3];
-    uint16_t pattern[4] = { dither565(c, t[0]), dither565(c, t[1]), dither565(c, t[2]), dither565(c, t[3]) };
+    uint16_t pattern[4];
+    for (uint32_t k = 0; k < 4U; k++)
+        pattern[k] = (g->dither != NULL) ? g->dither[(((uint32_t)y & 3U) * GRADIENT_STEPS + index) * 4U + k]
+                                         : dither565(c, t[k]);
     if (pattern[0] == pattern[1] && pattern[1] == pattern[2] && pattern[2] == pattern[3])
     {
         draw_pixels(s, y, x0, x1, pattern[0]);
@@ -215,8 +237,31 @@ static void put(const libdmview_surface_t* s, const paint_t* paint, int32_t y, i
         if (opaque)
         {
             const uint8_t* t = bayer[y & 3];
-            for (uint32_t i = 0; i < n; i++)
-                p[i] = dither565(lut[idx[i]], t[((uint32_t)x0 + i) & 3u]);
+            const uint16_t* d = paint->grad->dither;
+            if (d != NULL)
+            {
+                /* This line's quarter of the table; two pixels a store */
+                d += ((uint32_t)y & 3U) * GRADIENT_STEPS * 4U;
+                uint32_t i = 0, col = (uint32_t)x0;
+                if (((uintptr_t)p & 2U) != 0 && n > 0)
+                {
+                    p[0] = d[(uint32_t)idx[0] * 4U + (col & 3U)];
+                    i = 1;
+                }
+                for (; i + 1U < n; i += 2U)
+                {
+                    uint32_t a = d[(uint32_t)idx[i] * 4U + ((col + i) & 3U)];
+                    uint32_t b = d[(uint32_t)idx[i + 1U] * 4U + ((col + i + 1U) & 3U)];
+                    *(uint32_t*)(p + i) = a | (b << 16);
+                }
+                if (i < n)
+                    p[i] = d[(uint32_t)idx[i] * 4U + ((col + i) & 3U)];
+            }
+            else
+            {
+                for (uint32_t i = 0; i < n; i++)
+                    p[i] = dither565(lut[idx[i]], t[((uint32_t)x0 + i) & 3u]);
+            }
         }
         else
         {

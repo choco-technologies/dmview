@@ -45,6 +45,9 @@ void draw_pixels(const libdmview_surface_t* s, int32_t y, int32_t x0, int32_t x1
         *p++ = pixel;
 }
 
+/* Spans at least this long blend RGB565 through per-channel tables */
+#define BLEND_TABLE_SPAN    64
+
 /* A span of one 0xAARRGGBB color - blended only below alpha 0xFF */
 void draw_span(const libdmview_surface_t* s, int32_t y, int32_t x0, int32_t x1, uint32_t color)
 {
@@ -62,8 +65,28 @@ void draw_span(const libdmview_surface_t* s, int32_t y, int32_t x0, int32_t x1, 
     if (s->format == DMDRVI_GFX_PIXEL_FORMAT_RGB565)
     {
         uint16_t* p = (uint16_t*)row + x0;
+        if (n < BLEND_TABLE_SPAN)
+        {
+            for (; n > 0; n--, p++)
+                *p = blend565(*p, color);
+            return;
+        }
+        /* One color over every level of each channel - the same as
+         * blend565(), a pixel then costs three lookups */
+        uint16_t red[32], green[64], blue[32];
+        uint32_t sr = (color >> 16) & 0xFFu, sg = (color >> 8) & 0xFFu, sb = color & 0xFFu;
+        for (uint32_t k = 0; k < 32U; k++)
+        {
+            red[k] = (uint16_t)((mix(sr, k << 3, a) & 0xF8u) << 8);
+            blue[k] = (uint16_t)(mix(sb, k << 3, a) >> 3);
+        }
+        for (uint32_t k = 0; k < 64U; k++)
+            green[k] = (uint16_t)((mix(sg, k << 2, a) & 0xFCu) << 3);
         for (; n > 0; n--, p++)
-            *p = blend565(*p, color);
+        {
+            uint32_t d = *p;
+            *p = (uint16_t)(red[d >> 11] | green[(d >> 5) & 0x3Fu] | blue[d & 0x1Fu]);
+        }
         return;
     }
     uint32_t* p = (uint32_t*)row + x0;
