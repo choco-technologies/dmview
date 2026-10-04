@@ -85,3 +85,4 @@ add_subdirectory(tests)
 #               dmview - the display service
 # ======================================================================
 add_subdirectory(apps/dmview)
+add_subdirectory(apps/dmview_demo)

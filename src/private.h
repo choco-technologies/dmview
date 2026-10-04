@@ -295,7 +295,7 @@ void        claims_deinit(void);
 /* fontfile.c */
 int             fonts_init(void);
 void            fonts_deinit(void);
-void            font_resolve(const char* spec, font_t* font);
+void            font_resolve(const char* spec, const char* dir, font_t* font);
 void            font_release(font_t* font);
 const uint8_t*  font_glyph(const font_file_t* f, uint32_t codepoint);   /* dmvf_glyph_t, NULL if none */
 

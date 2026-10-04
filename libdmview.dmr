@@ -20,7 +20,6 @@ inc=./include => ${destination}/${module}/include [origin=${repo_dir}/include] [
 # Antialiased Roboto (Apache 2.0, fonts/LICENSE-Roboto.txt) as .dmvf files -
 # sans-N / sans-bold-N, found through $DMVIEW_FONTS - and the generator
 fonts=./fonts => ${destination}/${module}/fonts [origin=${repo_dir}/fonts]
-tools=./tools => ${destination}/${module}/tools [origin=${repo_dir}/tools]
 
 # === License ===
 license=./LICENSE => ${destination}/${module}/LICENSE [origin=${repo_dir}/LICENSE]

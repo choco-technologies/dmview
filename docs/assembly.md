@@ -385,8 +385,8 @@ when the view is shown:
 | Spec | Font |
 |------|------|
 | `"builtin-N"` | The built-in 8x8 font, magnified N / 8 times (`builtin-8`, `builtin-16`) - fixed width, never a file: a console's font |
-| has a `/` | The font file at that path |
-| anything else | `$DMVIEW_FONTS/<spec>.dmvf` |
+| has a `/` | The font file at that path - a relative one starts in the view's directory, like an image's |
+| anything else | `<spec>.dmvf` next to the view, else `$DMVIEW_FONTS/<spec>.dmvf` |
 
 Font files ([font-format.md](font-format.md)) hold antialiased glyphs -
 proportional, any Unicode character of the BMP the file has, text is UTF-8.
@@ -395,7 +395,8 @@ dmview ships Roboto as `sans-12` ... `sans-32` and `sans-bold-12` ...
 TrueType files ([font-format.md](font-format.md#making-a-font)). When the file is missing or is not a valid font, the
 built-in font is used, magnified by the spec's size / 8 - a view always
 shows its text. A file is loaded into memory once and shared by every view
-that uses it.
+that uses it. Fonts made from `DMOD_ASSETS_PATHS` are installed next to the
+views, so a view names them without a path.
 
 | Opcode | Mnemonic | Operands | Description |
 |--------|----------|----------|-------------|
@@ -487,7 +488,19 @@ variable declared with `.var`; built-in variables are read-only.
 | 0x47 | `MAX` | `$d, n` | d = max(d, n) |
 | 0x48 | `CLAMP` | `$d, lo, hi` | d = min(max(d, lo), hi) |
 | 0x49 | `TOGGLE` | `$d` | d = (d == 0) ? 1 : 0 |
-| 0x4A | `FORMAT` | `$d, str, n` | Format n into string variable d: `str` with one `%d`, `%x` or `%%` |
+| 0x4A | `FORMAT` | `$d, str, n` | Format n into string variable d: `str` with one `%d` or `%x` - optionally with a width, padded with spaces or, after a `0`, with zeros (`%02d`, `%4x`) - and `%%` for `%` |
+
+`str` can be a string variable, so a format can be made by `FORMAT` itself -
+a clock from minutes:
+
+```
+        SET     $n, $minutes
+        DIV     $n, 60
+        FORMAT  $text, "%d:%%02d", $n           ; 12:%02d
+        SET     $n, $minutes
+        MOD     $n, 60
+        FORMAT  $clock, $text, $n               ; 12:05
+```
 
 A variable is "changed" only when its value differs from the previous one -
 `SET $v, 5` on a `$v` that already holds 5 invalidates nothing.

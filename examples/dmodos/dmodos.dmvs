@@ -1,0 +1,836 @@
+; dmodOS - a home screen with six applications, 272 x 480 (portrait).
+;
+; A dmview example: everything a view is made of in one file - boxes,
+; gradients, translucency, text in font files and icons from an icon font,
+; handlers, timers and an animation. The fonts are made at build time from
+; fonts/ (each font's .ini names its sizes - see README.md).
+;
+; Coordinates are the ones of the design: Tailwind CSS laid out by a browser.
+; Where CSS centers or stretches something, TEXT gets the rectangle the
+; browser gave the element and aligns in it.
+
+.view   dmodos
+.size   272, 480
+.entry  draw
+
+; ---- Fonts (fonts/*.ini) ----
+
+.font   r9,         "inter-r-9"
+.font   r10,        "inter-r-10"
+.font   r12,        "inter-r-12"
+.font   r14,        "inter-r-14"
+.font   m10,        "inter-m-10"
+.font   m11,        "inter-m-11"
+.font   m12,        "inter-m-12"
+.font   m14,        "inter-m-14"
+.font   m14wide,    "inter-m-14-wide"       ; tracking-widest
+.font   sb10wide,   "inter-sb-10-wide"      ; tracking-wider
+.font   sb11clock,  "inter-sb-11-clock"     ; tracking-wide
+.font   sb12,       "inter-sb-12"
+.font   sb14,       "inter-sb-14"
+.font   b9,         "inter-b-9"
+.font   b12,        "inter-b-12"
+.font   b14,        "inter-b-14"
+.font   b18,        "inter-b-18"
+.font   b48clock,   "inter-b-48-clock"      ; tracking-tighter
+.font   b60temp,    "inter-b-60-temp"       ; tracking-tighter
+
+; Icons - Font Awesome glyphs, one font per size
+.font   fa10,       "fa-10"
+.font   fa12,       "fa-12"
+.font   fa16,       "fa-16"
+.font   fa18,       "fa-18"
+.font   fa20,       "fa-20"
+.font   fa24,       "fa-24"
+.font   fa48,       "fa-48"
+.font   fa60,       "fa-60"
+.font   fa72,       "fa-72"
+.font   fab11,      "fab-11"
+.font   fab16,      "fab-16"
+
+; ---- Gradients ----
+
+.gradient sky,          LINEAR, 135, #2B5876, #4E4376                   ; the home screen
+.gradient tile_gray,    LINEAR, 135, #4B5563, #1F2937                   ; bg-gradient-to-br
+.gradient tile_blue,    LINEAR, 135, #3B82F6, #0891B2
+.gradient tile_purple,  LINEAR, 135, #A855F7, #DB2777
+.gradient tile_green,   LINEAR, 135, #10B981, #16A34A
+.gradient tile_indigo,  LINEAR, 135, #6366F1, #2563EB
+.gradient banner,       LINEAR, 90, #2563EB, #4338CA                    ; bg-gradient-to-r
+.gradient cover,        LINEAR, 45, #9333EA, #EC4899                    ; bg-gradient-to-tr
+.gradient music_bg,     LINEAR, #311944, #171717                        ; purple-900/40 over neutral-900
+.gradient weather_bg,   LINEAR, #3B82F6, #1E40AF
+
+; The clock panel's glow: a yellow-400/20 circle of 48 px blurred by 24 px
+; (blur-xl) - the blur's falloff as stops, out to 120 px
+.gradient glow,         RADIAL, #2CFACC15 0, #29FACC15 13.3, #20FACC15 26.7, #14FACC15 40, #0AFACC15 53.3, #03FACC15 66.7, #00FACC15 85
+; The same glow on the 22 x 22 square of the panel's rounded corner, so a
+; CIRCLE there clips it to the corner as overflow-hidden does
+.gradient glow_corner,  RADIAL, 64, 36, 545, 545, #2CFACC15 0, #29FACC15 13.3, #20FACC15 26.7, #14FACC15 40, #0AFACC15 53.3, #03FACC15 66.7, #00FACC15 85
+
+; Shadows (box-shadow, drop-shadow): their blur's falloff as stops, painted
+; where they show around the shape
+.gradient shadow_lg,    LINEAR, #1E000000 0, #15000000 10, #11000000 20, #0D000000 30, #0B000000 40, #08000000 50, #06000000 60, #04000000 70, #03000000 80, #00000000 100
+.gradient shadow_md,    LINEAR, #1A000000 0, #0D000000 30, #05000000 60, #00000000 100
+.gradient shadow_cover, RADIAL, 50, 53, 46, 45, #61581C87 61, #4D581C87 64, #3D581C87 68, #2E581C87 72, #24581C87 76, #1F581C87 80, #14581C87 85, #0A581C87 89, #05581C87 93, #00581C87 100
+.gradient shadow_round, RADIAL, #1A000000 0, #1A000000 80, #00000000 100
+; The screen's inset shadow (inset 0 0 10px black/50), along each edge
+.gradient inset_top,    LINEAR, 180, #40000000 0, #28000000 25, #14000000 50, #08000000 75, #00000000 100
+.gradient inset_bottom, LINEAR, 0, #40000000 0, #28000000 25, #14000000 50, #08000000 75, #00000000 100
+.gradient inset_left,   LINEAR, 90, #40000000 0, #28000000 25, #14000000 50, #08000000 75, #00000000 100
+.gradient inset_right,  LINEAR, 270, #40000000 0, #28000000 25, #14000000 50, #08000000 75, #00000000 100
+
+; ---- Constants ----
+
+.define ANIM_MS,        300             ; Opening / closing an application
+.define SONG_S,         225             ; 3:45
+
+.define APP_SETTINGS,   1
+.define APP_SYSTEM,     2
+.define APP_MUSIC,      3
+.define APP_HOME,       4
+.define APP_STORE,      5
+.define APP_WEATHER,    6
+
+.define PRESSED,        #26000000       ; Over a pressed tile or button
+
+; ---- State ----
+
+.var    $app,           int, 0          ; The application shown, 0: the home screen
+.var    $win_y,         int, 480        ; Its window's top - 480 when closed, 0 when open
+.var    $home_alpha,    int, 255        ; The home screen dims to 0.3 under an application
+.var    $anim,          int, 0          ; 1 opening, -1 closing, 0 still
+.var    $t0,            int, 0          ; When the animation started
+
+.var    $minutes,       int, 720        ; The clock: 12:00
+.var    $seconds,       int, 0
+.var    $clock,         str[8],  "12:00"
+.var    $date,          str[32], "Poniedziałek, 17 Lip"
+.var    $uptime_s,      int, 15153      ; 04:12:33
+.var    $uptime,        str[48], ""
+.var    $uptime_format, str[48], "Uptime: %02d:%%02d:%%%%02d • Temp: 42°C"
+
+.var    $wifi,          int, 1
+.var    $bluetooth,     int, 0
+.var    $brightness,    int, 80
+.var    $brightness_text, str[8], "80%"
+
+.var    $cpu,           int, 24
+.var    $cpu_text,      str[8], "24%"
+.var    $cpu_w,         int, 0
+.var    $seed,          int, 12345
+
+.var    $playing,       int, 0
+.var    $position,      int, 84         ; 1:24
+.var    $position_text, str[8], "1:24"
+.var    $fill,          int, 0
+
+.var    $salon,         int, 1
+.var    $kitchen,       int, 0
+.var    $calculator,    int, 0          ; 1: installed
+
+; Temporaries of the handlers
+.var    $p,             int, 0
+.var    $k,             int, 0
+.var    $n,             int, 0
+.var    $text,          str[48], ""
+
+.init   start
+.timer  16, animate
+.timer  1000, tick
+
+; ======================================================================
+;       Drawing
+; ======================================================================
+
+draw:
+        ; An application that covers the screen hides everything else
+        JEQ     $app, 0, .home
+        JEQ     $win_y, 0, .window
+.home:
+        FILL    sky
+        RECT    0, 0, 272, 10, inset_top
+        RECT    0, 470, 272, 10, inset_bottom
+        RECT    0, 0, 10, 480, inset_left
+        RECT    262, 0, 10, 480, inset_right
+        CALL    status_bar
+        CALL    home_screen
+.window:
+        JEQ     $app, 0, .done
+        BOX     @window, 0, $win_y, 272, 480, OPAQUE
+        JEQ     $app, APP_SETTINGS, .settings
+        JEQ     $app, APP_SYSTEM, .system
+        JEQ     $app, APP_MUSIC, .music
+        JEQ     $app, APP_HOME, .smart_home
+        JEQ     $app, APP_STORE, .store
+        CALL    weather
+        JMP     .end
+.settings:
+        CALL    settings
+        JMP     .end
+.system:
+        CALL    system
+        JMP     .end
+.music:
+        CALL    music
+        JMP     .end
+.smart_home:
+        CALL    smart_home
+        JMP     .end
+.store:
+        CALL    store
+.end:
+        END
+.done:
+        RET
+
+; ---- Status bar (h-6, bg-black/30) ----
+
+status_bar:
+        RECT    0, 0, 272, 24, #4D000000
+        BOX     @status_clock, 12, 4, 38, 16
+        TEXT    0, 0, $box.w, $box.h, $clock, sb11clock, #FFFFFF, LEFT|MIDDLE
+        END
+        TEXT    51, 4, 50, 16, "dmodOS", m11, #B3FFFFFF, LEFT|MIDDLE
+        BOX     @status_wifi, 174, 7, 13, 10
+        JEQ     $wifi, 0, .no_wifi
+        TEXT    0, 0, $box.w, $box.h, "\xEF\x87\xAB", fa10, #E6FFFFFF, LEFT|MIDDLE         ; wifi
+.no_wifi:
+        END
+        TEXT    199, 4, 8, 16, "\xEF\x8A\x94", fab11, #E6FFFFFF, LEFT|MIDDLE               ; bluetooth-b
+        TEXT    217, 4, 26, 16, "84%", m11, #E6FFFFFF, LEFT|MIDDLE
+        TEXT    247, 4, 14, 16, "\xEF\x89\x81", fa12, #E6FFFFFF, LEFT|MIDDLE               ; battery-three-quarters
+        RET
+
+; ---- Home screen ----
+
+home_screen:
+        BOX     @home, 0, 24, 272, 456
+        OPACITY $home_alpha
+
+        ; The clock (glass panel, h-28, shadow-lg)
+        RECT    19, 128, 234, 12, shadow_lg
+        RRECT   16, 16, 240, 112, 12, #1AFFFFFF
+        RFRAME  16, 16, 240, 112, 12, 1, #33FFFFFF
+        BOX     @glow_lower, 17, 28, 238, 99            ; The glow, clipped to the panel's inside
+        CIRCLE  230, -3, 120, glow
+        END
+        BOX     @glow_upper, 17, 17, 227, 11
+        CIRCLE  230, 8, 120, glow
+        END
+        BOX     @glow_corner, 244, 17, 11, 11
+        CIRCLE  0, 11, 11, glow_corner
+        END
+        BOX     @home_clock, 16, 38, 240, 52
+        TEXT    0, 2, $box.w, 48, $clock, b48clock, #0F000000, CENTER|MIDDLE              ; drop-shadow-md
+        TEXT    0, 4, $box.w, 48, $clock, b48clock, #12000000, CENTER|MIDDLE
+        TEXT    0, 0, $box.w, 48, $clock, b48clock, #FFFFFF, CENTER|MIDDLE
+        END
+        TEXT    16, 90, 240, 16, $date, m12, #CCFFFFFF, CENTER|MIDDLE
+
+        ; The weather (glass panel, h-14, shadow-lg) - opens the weather
+        RECT    19, 196, 234, 20, shadow_lg
+        BOX     @weather_panel, 16, 140, 240, 56
+        ON      CLICK, open_weather
+        RRECT   0, 0, $box.w, $box.h, 12, #1AFFFFFF
+        RFRAME  0, 0, $box.w, $box.h, 12, 1, #33FFFFFF
+        JEQ     $box.pressed, 0, .weather_up
+        RRECT   0, 0, $box.w, $box.h, 12, PRESSED
+.weather_up:
+        TEXT    17, 11, 30, 36, "\xEF\x9B\x84", fa24, #1A000000, LEFT|MIDDLE               ; drop-shadow
+        TEXT    17, 10, 30, 36, "\xEF\x9B\x84", fa24, #FDE047, LEFT|MIDDLE                 ; cloud-sun
+        TEXT    59, 10, 80, 21, "22°C", sb14, #FFFFFF, LEFT|MIDDLE
+        TEXT    59, 30, 80, 16, "Banino, PL", r10, #B3FFFFFF, LEFT|MIDDLE
+        END
+
+        ; The applications (grid-cols-3)
+        BOX     @open_settings, 16, 220, 75, 69
+        ON      CLICK, open_settings
+        RRECT   13, 0, 48, 48, 12, tile_gray
+        RFRAME  13, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    13, 8, 48, 32, "\xEF\x80\x93", fa20, #E5E7EB, CENTER|MIDDLE              ; gear
+        TEXT    0, 54, $box.w, 15, "Ustawienia", m10, #E6FFFFFF, CENTER|MIDDLE
+        CALL    tile_pressed
+        END
+
+        BOX     @open_system, 99, 220, 75, 69
+        ON      CLICK, open_system
+        RRECT   13, 0, 48, 48, 12, tile_blue
+        RFRAME  13, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    13, 8, 48, 32, "\xEF\x8B\x9B", fa20, #FFFFFF, CENTER|MIDDLE              ; microchip
+        TEXT    0, 54, $box.w, 15, "System", m10, #E6FFFFFF, CENTER|MIDDLE
+        CALL    tile_pressed
+        END
+
+        BOX     @open_music, 182, 220, 75, 69
+        ON      CLICK, open_music
+        RRECT   13, 0, 48, 48, 12, tile_purple
+        RFRAME  13, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    13, 8, 48, 32, "\xEF\x80\x81", fa20, #FFFFFF, CENTER|MIDDLE              ; music
+        TEXT    0, 54, $box.w, 15, "Muzyka", m10, #E6FFFFFF, CENTER|MIDDLE
+        CALL    tile_pressed
+        END
+
+        BOX     @open_home, 16, 305, 75, 69
+        ON      CLICK, open_home
+        RRECT   13, 0, 48, 48, 12, tile_green
+        RFRAME  13, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    13, 8, 48, 32, "\xEE\x80\x92", fa20, #FFFFFF, CENTER|MIDDLE              ; house-signal
+        TEXT    0, 54, $box.w, 15, "Smart Dom", m10, #E6FFFFFF, CENTER|MIDDLE
+        CALL    tile_pressed
+        END
+
+        BOX     @open_store, 99, 305, 75, 69
+        ON      CLICK, open_store
+        RRECT   13, 0, 48, 48, 12, tile_indigo
+        RFRAME  13, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    13, 8, 48, 32, "\xEF\x95\x8F", fa20, #FFFFFF, CENTER|MIDDLE              ; shop
+        TEXT    0, 54, $box.w, 15, "Sklep", m10, #E6FFFFFF, CENTER|MIDDLE
+        CALL    tile_pressed
+        END
+
+        END
+        RET
+
+; A pressed tile darkens (touch-btn:active)
+tile_pressed:
+        JEQ     $box.pressed, 0, .up
+        RRECT   13, 0, 48, 48, 12, PRESSED
+.up:
+        RET
+
+; ---- Window header: back button (the title is drawn by each application) ----
+
+; The back button's highlight while pressed (hover:bg-white/10)
+back_pressed:
+        JEQ     $box.pressed, 0, .up
+        RRECT   8, 4, 40, 32, 4, #1AFFFFFF
+.up:
+        RET
+
+; ---- Settings ----
+
+settings:
+        FILL    #111827
+        RECT    0, 0, 272, 40, #1F2937
+        RECT    0, 39, 272, 1, #1AFFFFFF
+        BOX     @settings_back, 0, 0, 64, 40
+        ON      CLICK, close_app
+        CALL    back_pressed
+        TEXT    23, 9, 10, 21, "\xEF\x81\x93", fa16, #60A5FA, CENTER|MIDDLE              ; chevron-left
+        END
+        TEXT    56, 9, 200, 21, "Ustawienia", sb14, #FFFFFF, LEFT|MIDDLE
+
+        BOX     @wifi_row, 12, 52, 248, 46
+        ON      CLICK, toggle_wifi
+        CALL    row_bg
+        TEXT    13, 13, 20, 20, "\xEF\x87\xAB", fa16, #60A5FA, CENTER|MIDDLE              ; wifi
+        TEXT    45, 13, 150, 20, "Wi-Fi", r14, #FFFFFF, LEFT|MIDDLE
+        SET     $n, $wifi
+        CALL    switch
+        END
+
+        BOX     @bluetooth_row, 12, 106, 248, 46
+        ON      CLICK, toggle_bluetooth
+        CALL    row_bg
+        TEXT    13, 13, 20, 20, "\xEF\x8A\x94", fab16, #60A5FA, CENTER|MIDDLE             ; bluetooth-b
+        TEXT    45, 13, 150, 20, "Bluetooth", r14, #FFFFFF, LEFT|MIDDLE
+        SET     $n, $bluetooth
+        CALL    switch
+        END
+
+        BOX     @brightness_row, 12, 160, 248, 46
+        ON      CLICK, change_brightness
+        CALL    row_bg
+        TEXT    13, 13, 20, 20, "\xEE\x85\xA3", fa16, #D1D5DB, CENTER|MIDDLE              ; display
+        TEXT    45, 13, 150, 20, "Jasność ekranu", r14, #FFFFFF, LEFT|MIDDLE
+        TEXT    135, 15, 100, 16, $brightness_text, r12, #9CA3AF, RIGHT|MIDDLE
+        END
+
+        BOX     @about_row, 12, 222, 248, 46
+        ON      CLICK, open_system
+        CALL    row_bg
+        TEXT    13, 13, 20, 20, "\xEF\x81\x9A", fa16, #D1D5DB, CENTER|MIDDLE              ; circle-info
+        TEXT    45, 13, 150, 20, "O systemie dmodOS", r14, #FFFFFF, LEFT|MIDDLE
+        TEXT    200, 13, 35, 20, "\xEF\x81\x94", fa12, #6B7280, RIGHT|MIDDLE              ; chevron-right
+        END
+        RET
+
+; A list row: bg-gray-800, rounded-lg, border-white/5
+row_bg:
+        RRECT   0, 0, $box.w, $box.h, 8, #1F2937
+        RFRAME  0, 0, $box.w, $box.h, 8, 1, #0DFFFFFF
+        JEQ     $box.pressed, 0, .up
+        RRECT   0, 0, $box.w, $box.h, 8, #0DFFFFFF
+.up:
+        RET
+
+; A switch at the row's right, on when $n
+switch:
+        JEQ     $n, 0, .off
+        RRECT   203, 15, 32, 16, 8, #3B82F6
+        CIRCLE  227, 23, 6, #FFFFFF
+        RET
+.off:
+        RRECT   203, 15, 32, 16, 8, #4B5563
+        CIRCLE  211, 23, 6, #9CA3AF
+        RET
+
+; ---- System ----
+
+system:
+        FILL    #0F172A
+        RECT    0, 0, 272, 40, #1E293B
+        RECT    0, 39, 272, 1, #1AFFFFFF
+        BOX     @system_back, 0, 0, 64, 40
+        ON      CLICK, close_app
+        CALL    back_pressed
+        TEXT    23, 9, 10, 21, "\xEF\x81\x93", fa16, #60A5FA, CENTER|MIDDLE              ; chevron-left
+        END
+        TEXT    56, 9, 200, 21, "Zasoby Systemu", sb14, #FFFFFF, LEFT|MIDDLE
+
+        ; CPU - changes every second
+        TEXT    16, 56, 12, 16, "\xEF\x8B\x9B", fa12, #D1D5DB, LEFT|MIDDLE                ; microchip
+        TEXT    32, 56, 100, 16, " CPU", r12, #D1D5DB, LEFT|MIDDLE
+        BOX     @cpu, 16, 56, 240, 28
+        TEXT    0, 0, $box.w, 16, $cpu_text, b12, #22D3EE, RIGHT|MIDDLE
+        RRECT   0, 20, $box.w, 8, 4, #334155
+        SET     $cpu_w, $cpu
+        MUL     $cpu_w, $box.w
+        DIV     $cpu_w, 100
+        RRECT   0, 20, $cpu_w, 8, 4, #06B6D4
+        END
+
+        ; RAM
+        TEXT    16, 100, 14, 16, "\xEF\x94\xB8", fa12, #D1D5DB, LEFT|MIDDLE               ; memory
+        TEXT    34, 100, 100, 16, " RAM", r12, #D1D5DB, LEFT|MIDDLE
+        TEXT    136, 100, 120, 16, "112 / 256 MB", b12, #34D399, RIGHT|MIDDLE
+        RRECT   16, 120, 240, 8, 4, #334155
+        RRECT   16, 120, 108, 8, 4, #10B981
+
+        ; Flash
+        TEXT    16, 144, 12, 16, "\xEF\x82\xA0", fa12, #D1D5DB, LEFT|MIDDLE               ; hard-drive
+        TEXT    32, 144, 100, 16, " Flash", r12, #D1D5DB, LEFT|MIDDLE
+        TEXT    136, 144, 120, 16, "1.2 / 4.0 GB", b12, #C084FC, RIGHT|MIDDLE
+        RRECT   16, 164, 240, 8, 4, #334155
+        RRECT   16, 164, 72, 8, 4, #A855F7
+
+        BOX     @uptime, 0, 446, 272, 16
+        TEXT    0, 0, $box.w, $box.h, $uptime, r10, #64748B, CENTER|MIDDLE
+        END
+        RET
+
+; ---- Store ----
+
+store:
+        FILL    #0F172A
+        RECT    0, 0, 272, 40, #1E293B
+        RECT    0, 39, 272, 1, #1AFFFFFF
+        BOX     @store_back, 0, 0, 64, 40
+        ON      CLICK, close_app
+        CALL    back_pressed
+        TEXT    23, 9, 10, 21, "\xEF\x81\x93", fa16, #60A5FA, CENTER|MIDDLE              ; chevron-left
+        END
+        TEXT    56, 9, 200, 21, "Sklep dmodOS", sb14, #FFFFFF, LEFT|MIDDLE
+
+        RECT    15, 148, 242, 10, shadow_md                                             ; shadow-md
+        RRECT   12, 52, 248, 96, 12, banner
+        TEXT    192, 58, 60, 52, "\xEF\x84\x9B", fa48, #33FFFFFF, LEFT|MIDDLE             ; gamepad
+        TEXT    24, 101, 224, 20, "Gry Retro", b14, #FFFFFF, LEFT|MIDDLE
+        TEXT    24, 121, 224, 15, "Odkryj nowości w dmodOS", r10, #B3FFFFFF, LEFT|MIDDLE
+        TEXT    12, 164, 248, 15, "POLECANE APLIKACJE", sb10wide, #9CA3AF, LEFT|MIDDLE
+
+        BOX     @calculator_row, 12, 191, 248, 58
+        RRECT   0, 0, $box.w, $box.h, 8, #1F2937
+        RFRAME  0, 0, $box.w, $box.h, 8, 1, #0DFFFFFF
+        RRECT   11, 11, 36, 36, 8, #F97316
+        TEXT    11, 19, 36, 20, "\xEF\x87\xAC", fa16, #FFFFFF, CENTER|MIDDLE              ; calculator
+        TEXT    59, 12, 110, 20, "Kalkulator", m14, #FFFFFF, LEFT|MIDDLE
+        TEXT    59, 32, 110, 14, "Narzędzia", r9, #9CA3AF, LEFT|MIDDLE
+        JNE     $calculator, 0, .installed
+        BOX     @calculator_get, 174, 16, 63, 26
+        ON      CLICK, install_calculator
+        RRECT   0, 0, $box.w, $box.h, 13, #2563EB
+        CALL    button_pressed
+        TEXT    0, 0, $box.w, $box.h, "POBIERZ", b9, #FFFFFF, CENTER|MIDDLE
+        END
+        JMP     .calculator_done
+.installed:
+        BOX     @calculator_open, 172, 16, 65, 26
+        RRECT   0, 0, $box.w, $box.h, 13, #1AFFFFFF
+        CALL    button_pressed
+        TEXT    0, 0, $box.w, $box.h, "OTWÓRZ", b9, #FFFFFF, CENTER|MIDDLE
+        END
+.calculator_done:
+        END
+
+        BOX     @chat_row, 12, 261, 248, 58
+        RRECT   0, 0, $box.w, $box.h, 8, #1F2937
+        RFRAME  0, 0, $box.w, $box.h, 8, 1, #0DFFFFFF
+        RRECT   11, 11, 36, 36, 8, #22C55E
+        TEXT    11, 19, 36, 20, "\xEF\x89\xBA", fa16, #FFFFFF, CENTER|MIDDLE              ; message
+        TEXT    59, 12, 110, 20, "Chat dmod", m14, #FFFFFF, LEFT|MIDDLE
+        TEXT    59, 32, 110, 14, "Komunikacja", r9, #9CA3AF, LEFT|MIDDLE
+        BOX     @chat_open, 172, 16, 65, 26
+        RRECT   0, 0, $box.w, $box.h, 13, #1AFFFFFF
+        CALL    button_pressed
+        TEXT    0, 0, $box.w, $box.h, "OTWÓRZ", b9, #FFFFFF, CENTER|MIDDLE
+        END
+        END
+        RET
+
+button_pressed:
+        JEQ     $box.pressed, 0, .up
+        RRECT   0, 0, $box.w, $box.h, 13, PRESSED
+.up:
+        RET
+
+; ---- Music ----
+
+music:
+        FILL    music_bg
+        BOX     @music_back, 0, 0, 64, 40
+        ON      CLICK, close_app
+        CALL    back_pressed
+        TEXT    23, 10, 10, 20, "\xEF\x81\x93", fa16, #FFFFFF, CENTER|MIDDLE              ; chevron-left
+        END
+
+        RECT    56, 75, 160, 160, shadow_cover                                          ; shadow-xl shadow-purple-900/30
+        RRECT   72, 75, 128, 128, 8, cover
+        RFRAME  72, 75, 128, 128, 8, 1, #1AFFFFFF
+        TEXT    72, 107, 128, 64, "\xEF\x94\x9F", fa60, #80FFFFFF, CENTER|MIDDLE          ; compact-disc
+        TEXT    0, 227, 272, 28, "Retro Synthwave", b18, #FFFFFF, CENTER|MIDDLE
+        TEXT    0, 255, 272, 16, "Artysta Nieznany", r12, #9CA3AF, CENTER|MIDDLE
+
+        BOX     @progress, 0, 300, 272, 20
+        TEXT    24, 3, 30, 14, $position_text, r9, #9CA3AF, LEFT|MIDDLE
+        TEXT    208, 3, 40, 14, "3:45", r9, #9CA3AF, RIGHT|MIDDLE
+        RRECT   49, 7, 172, 6, 3, #374151
+        SET     $fill, $position
+        MUL     $fill, 172
+        DIV     $fill, SONG_S
+        RRECT   49, 7, $fill, 6, 3, #A855F7
+        ADD     $fill, 43                       ; The thumb ends with the fill: 49 + fill - 6
+        CIRCLE  $fill, 10, 6, #FFFFFF
+        END
+
+        BOX     @previous, 50, 341, 40, 56
+        ON      CLICK, rewind
+        TEXT    15, 16, 11, 22, "\xEF\x81\x88", fa18, #D1D5DB, LEFT|MIDDLE                ; backward-step
+        END
+        CIRCLE  136, 377, 33, shadow_round                                              ; shadow-lg
+        BOX     @play, 108, 341, 56, 56
+        ON      CLICK, play_pause
+        CIRCLE  28, 28, 28, #FFFFFF
+        JEQ     $box.pressed, 0, .play_up
+        CIRCLE  28, 28, 28, PRESSED
+.play_up:
+        JNE     $playing, 0, .pause
+        TEXT    23, 16, 15, 24, "\xEF\x81\x8B", fa20, #000000, LEFT|MIDDLE                ; play
+        JMP     .play_done
+.pause:
+        TEXT    0, 16, 56, 24, "\xEF\x81\x8C", fa20, #000000, CENTER|MIDDLE               ; pause
+.play_done:
+        END
+        BOX     @next, 182, 341, 40, 56
+        ON      CLICK, rewind
+        TEXT    14, 16, 12, 22, "\xEF\x81\x91", fa18, #D1D5DB, LEFT|MIDDLE                ; forward-step
+        END
+        RET
+
+; ---- Smart home ----
+
+smart_home:
+        FILL    #18181B
+        RECT    0, 0, 272, 40, #27272A
+        RECT    0, 39, 272, 1, #1AFFFFFF
+        BOX     @home_back, 0, 0, 64, 40
+        ON      CLICK, close_app
+        CALL    back_pressed
+        TEXT    23, 9, 10, 21, "\xEF\x81\x93", fa16, #4ADE80, CENTER|MIDDLE              ; chevron-left
+        END
+        TEXT    56, 9, 200, 21, "Smart Dom", sb14, #FFFFFF, LEFT|MIDDLE
+
+        BOX     @salon, 12, 52, 118, 101
+        ON      CLICK, toggle_salon
+        SET     $n, $salon
+        CALL    light_card
+        TEXT    13, 53, 92, 20, "Salon", b14, #FFFFFF, LEFT|MIDDLE
+        END
+
+        BOX     @kitchen, 142, 52, 118, 101
+        ON      CLICK, toggle_kitchen
+        SET     $n, $kitchen
+        CALL    light_card
+        TEXT    13, 53, 92, 20, "Kuchnia", b14, #FFFFFF, LEFT|MIDDLE
+        END
+
+        BOX     @thermostat, 12, 165, 118, 101
+        CALL    card_off
+        TEXT    13, 11, 30, 36, "\xEF\x8B\x89", fa24, #FB923C, LEFT|MIDDLE                ; temperature-half
+        TEXT    13, 53, 92, 20, "Term.", b14, #FFFFFF, LEFT|MIDDLE
+        TEXT    13, 73, 92, 15, "21.5°C", r10, #9CA3AF, LEFT|MIDDLE
+        END
+
+        BOX     @door, 142, 165, 118, 101
+        CALL    card_off
+        TEXT    13, 11, 30, 36, "\xEF\x80\xA3", fa24, #F87171, LEFT|MIDDLE                ; lock
+        TEXT    13, 53, 92, 20, "Drzwi", b14, #FFFFFF, LEFT|MIDDLE
+        TEXT    13, 73, 92, 15, "Zamek", r10, #F87171, LEFT|MIDDLE
+        END
+        RET
+
+; A light's card: green when $n (on)
+light_card:
+        JEQ     $n, 0, .off
+        RRECT   0, 0, $box.w, $box.h, 12, #3316A34A
+        RFRAME  0, 0, $box.w, $box.h, 12, 1, #4D22C55E
+        CALL    card_pressed
+        TEXT    13, 11, 30, 36, "\xEF\x83\xAB", fa24, #4ADE80, LEFT|MIDDLE                ; lightbulb
+        TEXT    13, 73, 92, 15, "100%", r10, #4ADE80, LEFT|MIDDLE
+        RET
+.off:
+        CALL    card_off
+        CALL    card_pressed
+        TEXT    13, 11, 30, 36, "\xEF\x83\xAB", fa24, #9CA3AF, LEFT|MIDDLE                ; lightbulb
+        TEXT    13, 73, 92, 15, "Wył.", r10, #6B7280, LEFT|MIDDLE
+        RET
+
+card_off:
+        RRECT   0, 0, $box.w, $box.h, 12, #27272A
+        RFRAME  0, 0, $box.w, $box.h, 12, 1, #0DFFFFFF
+        RET
+
+card_pressed:
+        JEQ     $box.pressed, 0, .up
+        RRECT   0, 0, $box.w, $box.h, 12, #1A000000
+.up:
+        RET
+
+; ---- Weather ----
+
+weather:
+        FILL    weather_bg
+        BOX     @weather_back, 0, 0, 64, 40
+        ON      CLICK, close_app
+        CALL    back_pressed
+        TEXT    23, 10, 10, 20, "\xEF\x81\x93", fa16, #FFFFFF, CENTER|MIDDLE              ; chevron-left
+        END
+        TEXT    0, 104, 272, 76, "\xEF\x9B\x84", fa72, #0D000000, CENTER|MIDDLE           ; drop-shadow-lg
+        TEXT    0, 105, 272, 76, "\xEF\x9B\x84", fa72, #0D000000, CENTER|MIDDLE
+        TEXT    0, 106, 272, 76, "\xEF\x9B\x84", fa72, #0D000000, CENTER|MIDDLE
+        TEXT    0, 111, 272, 76, "\xEF\x9B\x84", fa72, #05000000, CENTER|MIDDLE
+        TEXT    0, 101, 272, 76, "\xEF\x9B\x84", fa72, #FDE047, CENTER|MIDDLE             ; cloud-sun
+        TEXT    0, 191, 272, 60, "22°C", b60temp, #FFFFFF, CENTER|MIDDLE
+        TEXT    0, 259, 272, 20, "BANINO, PL", m14wide, #CCFFFFFF, CENTER|MIDDLE
+        TEXT    0, 283, 272, 16, "Częściowe zachmurzenie", r12, #E6FFFFFF, CENTER|MIDDLE
+        RECT    0, 331, 272, 1, #33FFFFFF
+        TEXT    16, 348, 75, 13, "Wiatr", r9, #B3FFFFFF, CENTER|MIDDLE
+        TEXT    16, 361, 75, 16, "14 km/h", sb12, #FFFFFF, CENTER|MIDDLE
+        TEXT    99, 348, 75, 13, "Wilgot.", r9, #B3FFFFFF, CENTER|MIDDLE
+        TEXT    99, 361, 75, 16, "65%", sb12, #FFFFFF, CENTER|MIDDLE
+        TEXT    181, 348, 75, 13, "Deszcz", r9, #B3FFFFFF, CENTER|MIDDLE
+        TEXT    181, 361, 75, 16, "0 mm", sb12, #FFFFFF, CENTER|MIDDLE
+        RET
+
+; ======================================================================
+;       Handlers
+; ======================================================================
+
+start:
+        CALL    format_clock
+        CALL    format_uptime
+        CALL    format_position
+        RET
+
+; ---- Opening and closing applications ----
+
+open_settings:
+        SET     $n, APP_SETTINGS
+        JMP     open_app
+open_system:
+        SET     $n, APP_SYSTEM
+        JMP     open_app
+open_music:
+        SET     $n, APP_MUSIC
+        JMP     open_app
+open_home:
+        SET     $n, APP_HOME
+        JMP     open_app
+open_store:
+        SET     $n, APP_STORE
+        JMP     open_app
+open_weather:
+        SET     $n, APP_WEATHER
+open_app:
+        JNE     $anim, 0, .busy
+        JEQ     $app, $n, .busy
+        JEQ     $app, 0, .slide
+        SET     $app, $n                        ; From one application to another: at once
+        RET
+.slide:
+        SET     $app, $n
+        SET     $anim, 1
+        SET     $t0, $time
+.busy:
+        RET
+
+close_app:
+        JNE     $anim, 0, .busy
+        SET     $anim, -1
+        SET     $t0, $time
+.busy:
+        RET
+
+; Every frame of an animation: the window slides with ease-out, the home
+; screen beneath dims (0.3) or comes back
+animate:
+        JEQ     $anim, 0, .still
+        SET     $p, $time                       ; p = progress, 0 ... 1000
+        SUB     $p, $t0
+        MUL     $p, 1000
+        DIV     $p, ANIM_MS
+        CLAMP   $p, 0, 1000
+        SET     $n, 1000                        ; k = (1 - p)^3: what is left of the way
+        SUB     $n, $p
+        SET     $k, $n
+        MUL     $k, $n
+        DIV     $k, 1000
+        MUL     $k, $n
+        DIV     $k, 1000
+        JEQ     $anim, -1, .closing
+        SET     $win_y, $k                      ; Opening: 480 -> 0
+        MUL     $win_y, 480
+        DIV     $win_y, 1000
+        SET     $home_alpha, $k                 ; 255 -> 77
+        MUL     $home_alpha, 178
+        DIV     $home_alpha, 1000
+        ADD     $home_alpha, 77
+        JMP     .moved
+.closing:
+        SET     $win_y, $k                      ; Closing: 0 -> 480
+        MUL     $win_y, -480
+        DIV     $win_y, 1000
+        ADD     $win_y, 480
+        SET     $home_alpha, $k                 ; 77 -> 255
+        MUL     $home_alpha, -178
+        DIV     $home_alpha, 1000
+        ADD     $home_alpha, 255
+.moved:
+        JLT     $p, 1000, .still
+        JNE     $anim, -1, .stop
+        SET     $app, 0
+.stop:
+        SET     $anim, 0
+.still:
+        RET
+
+; ---- Every second: the clock, the uptime, the CPU, the song ----
+
+tick:
+        ADD     $uptime_s, 1
+        CALL    format_uptime
+        ADD     $seconds, 1
+        JLT     $seconds, 60, .cpu
+        SET     $seconds, 0
+        ADD     $minutes, 1
+        MOD     $minutes, 1440
+        CALL    format_clock
+.cpu:
+        ; A CPU load of 15 ... 34 %, from a pseudo-random sequence
+        MUL     $seed, 1103515245
+        ADD     $seed, 12345
+        SET     $cpu, $seed
+        DIV     $cpu, 65536
+        MOD     $cpu, 20
+        JGE     $cpu, 0, .positive
+        MUL     $cpu, -1
+.positive:
+        ADD     $cpu, 15
+        FORMAT  $cpu_text, "%d%%", $cpu
+        JEQ     $playing, 0, .done
+        ADD     $position, 1
+        JLE     $position, SONG_S, .song
+        SET     $position, 0
+.song:
+        CALL    format_position
+.done:
+        RET
+
+; $clock = "H:MM" - FORMAT takes one number, so the hours go into the
+; format of the minutes first
+format_clock:
+        SET     $n, $minutes
+        DIV     $n, 60
+        FORMAT  $text, "%d:%%02d", $n
+        SET     $n, $minutes
+        MOD     $n, 60
+        FORMAT  $clock, $text, $n
+        RET
+
+; $uptime = "Uptime: HH:MM:SS ..." in three steps the same way
+format_uptime:
+        SET     $n, $uptime_s
+        DIV     $n, 3600
+        FORMAT  $uptime, $uptime_format, $n
+        SET     $n, $uptime_s
+        DIV     $n, 60
+        MOD     $n, 60
+        FORMAT  $text, $uptime, $n
+        SET     $n, $uptime_s
+        MOD     $n, 60
+        FORMAT  $uptime, $text, $n
+        RET
+
+format_position:
+        SET     $n, $position
+        DIV     $n, 60
+        FORMAT  $text, "%d:%%02d", $n
+        SET     $n, $position
+        MOD     $n, 60
+        FORMAT  $position_text, $text, $n
+        RET
+
+; ---- Settings ----
+
+toggle_wifi:
+        TOGGLE  $wifi
+        RET
+
+toggle_bluetooth:
+        TOGGLE  $bluetooth
+        RET
+
+; 20 ... 100 % in steps of 20
+change_brightness:
+        ADD     $brightness, 20
+        JLE     $brightness, 100, .format
+        SET     $brightness, 20
+.format:
+        FORMAT  $brightness_text, "%d%%", $brightness
+        RET
+
+; ---- Music ----
+
+play_pause:
+        TOGGLE  $playing
+        RET
+
+rewind:
+        SET     $position, 0
+        CALL    format_position
+        RET
+
+; ---- Smart home, store ----
+
+toggle_salon:
+        TOGGLE  $salon
+        RET
+
+toggle_kitchen:
+        TOGGLE  $kitchen
+        RET
+
+install_calculator:
+        SET     $calculator, 1
+        RET

@@ -15,6 +15,7 @@
  */
 
 #define VARBIT(insn, i)     (((insn)[2] & (1u << (i))) != 0)
+#define FORMAT_MAX_WIDTH    16u          /* Widest padding of a FORMAT conversion */
 
 /* ---- Variables ---- */
 
@@ -120,19 +121,28 @@ static inline void paint_of(struct libdmview* v, const uint8_t* insn, unsigned i
     paint_gradient(paint, &v->gradients[rd32(insn + off)], v->stops, v->surface->format, x, y, w, h);
 }
 
-/* "Count: %d" with one %d / %x, "%%" for '%' (validated by the assembler) */
+/* "Count: %d" with one %d / %x - "%02d", "%4x": padded to a width with
+ * zeros or spaces - "%%" for '%' (validated by the assembler) */
 static void format_into(char* out, size_t size, const char* format, int32_t n)
 {
     static const char digits[] = "0123456789abcdef";
     size_t o = 0;
     for (const char* p = format; *p != '\0' && o + 1 < size; p++)
     {
-        if (*p != '%' || (p[1] != 'd' && p[1] != 'x' && p[1] != '%'))
+        const char* c = p + 1;
+        bool zeros = *c == '0';
+        uint32_t width = 0;
+        if (zeros)
+            c++;
+        while (*c >= '0' && *c <= '9' && width < FORMAT_MAX_WIDTH)
+            width = width * 10U + (uint32_t)(*c++ - '0');
+        if (*p != '%' || (*c != 'd' && *c != 'x' && !(*c == '%' && c == p + 1)))
         {
             out[o++] = *p;
             continue;
         }
-        char conversion = *++p;
+        char conversion = *c;
+        p = c;
         if (conversion == '%')
         {
             out[o++] = '%';
@@ -141,13 +151,19 @@ static void format_into(char* out, size_t size, const char* format, int32_t n)
         char tmp[12];
         size_t t = 0;
         uint32_t base = (conversion == 'x') ? 16u : 10u;
-        uint32_t u = (conversion == 'd' && n < 0) ? (uint32_t)(-(n + 1)) + 1u : (uint32_t)n;
+        bool minus = conversion == 'd' && n < 0;
+        uint32_t u = minus ? (uint32_t)(-(n + 1)) + 1u : (uint32_t)n;
         do
         {
             tmp[t++] = digits[u % base];
             u /= base;
         } while (u != 0);
-        if (conversion == 'd' && n < 0 && o + 1 < size)
+        uint32_t length = (uint32_t)t + (minus ? 1U : 0U);
+        if (minus && zeros && o + 1 < size)
+            out[o++] = '-';
+        for (; length < width && o + 1 < size; length++)
+            out[o++] = zeros ? '0' : ' ';
+        if (minus && !zeros && o + 1 < size)
             out[o++] = '-';
         while (t > 0 && o + 1 < size)
             out[o++] = tmp[--t];

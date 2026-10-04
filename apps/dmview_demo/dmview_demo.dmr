@@ -1,0 +1,21 @@
+# DMOD Resource File for dmview_demo (the dmodOS example)
+# This file specifies where resources should be installed
+
+# === Core Module ===
+dmf=./${module}.dmf => ${destination}/${module}.dmf [origin=${dmf_dir}/${module}.dmf]
+dmfc=./${module}.dmfc => ${destination}/${module}.dmfc [origin=${build_dir}/dmfc/${module}.dmfc]
+dmd=./${module}.dmd => ${destination}/${module}.dmd [origin=${dmf_dir}/${module}.dmd]
+version=./${module}_version.txt => ${destination}/${module}_version.txt [origin=${dmf_dir}/${module}_version.txt]
+
+# === The view and its fonts (converted from examples/dmodos), with the fonts' licenses ===
+views=./views => ${views_dir} [origin=${views_dir}] [origin=${repo_dir}/examples/dmodos/fonts/LICENSE-Inter.txt] [origin=${repo_dir}/examples/dmodos/fonts/LICENSE-FontAwesome.txt]
+
+# === Configuration files ===
+# dmview_demo.ini (unit) - used by dmf-get's "dmview_demo service=dmview_demo.ini"
+configs=./configs => ${destination}/${module}/configs [origin=${repo_dir}/apps/dmview_demo/configs]
+
+# === License ===
+license=./LICENSE => ${destination}/${module}/LICENSE [origin=${repo_dir}/LICENSE]
+
+# Adding itself
+dmr=./${module}.dmr => ${destination}/${module}/${module}.dmr [origin=${repo_dir}/apps/dmview_demo/${module}.dmr]
