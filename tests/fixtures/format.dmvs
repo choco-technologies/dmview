@@ -1,0 +1,32 @@
+; FORMAT padding to a width - every formatted line is drawn above the same
+; text as a literal, in the built-in font, on a 64x48 surface; a format
+; string can be a string variable, so it can be built by FORMAT itself
+.view   format
+.size   64, 48
+.entry  draw
+
+.font   fixed, "builtin-8"
+
+.var    $clock, str[12], "%02d:%%02d"     ; -> "07:%02d" -> "07:05"
+.var    $hex,   str[8],  "%04x"
+.var    $neg,   str[8],  "%03d"
+.var    $wide,  str[8],  "%4d"
+.var    $a,     str[12], ""
+.var    $b,     str[12], ""
+
+draw:
+        FILL    #000000
+        FORMAT  $a, $clock, 7
+        FORMAT  $b, $a, 5
+        TEXT    0, 0, 64, 8, $b, fixed, #FFFFFF, LEFT
+        TEXT    0, 8, 64, 8, "07:05", fixed, #FFFFFF, LEFT
+        FORMAT  $a, $hex, 171
+        TEXT    0, 16, 32, 8, $a, fixed, #FFFFFF, LEFT
+        TEXT    0, 24, 32, 8, "00ab", fixed, #FFFFFF, LEFT
+        FORMAT  $a, $neg, -5
+        TEXT    32, 16, 32, 8, $a, fixed, #FFFFFF, LEFT
+        TEXT    32, 24, 32, 8, "-05", fixed, #FFFFFF, LEFT
+        FORMAT  $a, $wide, -3
+        TEXT    0, 32, 64, 8, $a, fixed, #FFFFFF, LEFT
+        TEXT    0, 40, 64, 8, "  -3", fixed, #FFFFFF, LEFT
+        RET

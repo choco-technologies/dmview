@@ -12,6 +12,7 @@
 | `void libdmview_close(libdmview_t view)` | Release a view (NULL is fine) |
 | `int libdmview_render(libdmview_t view, const libdmview_surface_t* s, libdmview_rect_t* changed)` | Draw what changed (everything the first time, after `libdmview_invalidate()` or a new surface size). 1 when something was drawn - `changed` is its bounding rectangle -, 0 when nothing changed, `-ENOTSUP` for a pixel format other than RGB565 / ARGB8888 |
 | `void libdmview_invalidate(libdmview_t view)` | Draw everything next time |
+| `int libdmview_get_size(libdmview_t view, uint16_t* width, uint16_t* height)` | The size the view was designed for (`.size`) - a service turns a portrait view on a landscape display by it |
 | `int libdmview_input(libdmview_t view, const dmdrvi_input_state_t* state, uint32_t now_ms)` | Feed the input device's state; changes become events and run their handlers |
 | `uint32_t libdmview_update(libdmview_t view, uint32_t now_ms)` | Run what is due (`.timer`, `LONG`); returns the ms until the next deadline or `LIBDMVIEW_NO_DEADLINE` |
 | `const char* libdmview_take_goto(libdmview_t view)` | The path a `GOTO` asked for, once; NULL when none |

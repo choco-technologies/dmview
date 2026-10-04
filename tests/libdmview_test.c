@@ -324,6 +324,71 @@ DMOD_TEST_STEP(libdmview_falls_back_from_broken_fonts)
     DMOD_TEST_EXPECT_EQ(partial, 0u);
 }
 
+DMOD_TEST_STEP(libdmview_finds_fonts_next_to_the_view)
+{
+    uint32_t partial;
+    /* sans-16.dmvf next to fonts.dmv - $DMVIEW_FONTS is not set */
+    void* in = Dmod_FileOpen(LIBDMVIEW_FONTS_DIR "/sans-16.dmvf", "rb");
+    void* out = Dmod_FileOpen(FIXTURE("sans-16.dmvf"), "wb");
+    DMOD_TEST_EXPECT_NOT_NULL(in);
+    DMOD_TEST_EXPECT_NOT_NULL(out);
+    if (in != NULL && out != NULL)
+    {
+        static uint8_t buffer[512];
+        size_t n;
+        while ((n = Dmod_FileRead(buffer, 1, sizeof(buffer), in)) > 0)
+            Dmod_FileWrite(buffer, 1, n, out);
+    }
+    if (in != NULL)
+        Dmod_FileClose(in);
+    if (out != NULL)
+        Dmod_FileClose(out);
+
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("fonts.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    int32_t ww = lit_width(0, 0, 32, 16, &partial);                    /* Roboto, not the built-in font */
+    DMOD_TEST_EXPECT_TRUE(ww > 20 && ww < 32);
+    DMOD_TEST_EXPECT_TRUE(partial > 20u);
+}
+
+/* ---- FORMAT ---- */
+
+/* Rows y0 .. y0+8 of x0 .. x1 are lit and the same as the 8 rows below them */
+static bool same_as_below(int x0, int x1, int y0)
+{
+    uint32_t lit = 0;
+    for (int y = y0; y < y0 + 8; y++)
+    {
+        for (int x = x0; x < x1; x++)
+        {
+            if (px(x, y) != px(x, y + 8))
+                return false;
+            lit += (px(x, y) != 0xFF000000u) ? 1u : 0u;
+        }
+    }
+    return lit > 0;
+}
+
+DMOD_TEST_STEP(libdmview_formats_with_padding)
+{
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("format.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    DMOD_TEST_EXPECT_TRUE(same_as_below(0, 64, 0));     /* "%02d:%%02d" 7, then 5: "07:05" */
+    DMOD_TEST_EXPECT_TRUE(same_as_below(0, 32, 16));    /* "%04x" 171: "00ab" */
+    DMOD_TEST_EXPECT_TRUE(same_as_below(32, 64, 16));   /* "%03d" -5: "-05" */
+    DMOD_TEST_EXPECT_TRUE(same_as_below(0, 64, 32));    /* "%4d" -3: "  -3" */
+
+    uint16_t w = 0, h = 0;
+    DMOD_TEST_EXPECT_EQ(libdmview_get_size(g_view, &w, &h), 0);
+    DMOD_TEST_EXPECT_EQ(w, 64);
+    DMOD_TEST_EXPECT_EQ(h, 48);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_size(NULL, &w, &h), -EINVAL);
+}
+
 /* ---- Antialiasing ---- */
 
 

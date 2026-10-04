@@ -274,7 +274,7 @@ static int load_tables(struct libdmview* v, const dmv_input_t* in, const uint8_t
         return -ENOMEM;
     }
     for (uint32_t i = 0; i < v->font_count; i++)
-        font_resolve(view_string(v, rd16(raw + i * sizeof(dmv_font_t) + 2U)), &v->fonts[i]);
+        font_resolve(view_string(v, rd16(raw + i * sizeof(dmv_font_t) + 2U)), v->dir, &v->fonts[i]);
     Dmod_Free(raw);
 
     /* Boxes */
@@ -395,7 +395,10 @@ static int load_tables(struct libdmview* v, const dmv_input_t* in, const uint8_t
     return (images_slots(v) == 0) ? 0 : -ENOMEM;
 }
 
-dmod_libdmview_api_declaration(1.0, libdmview_t, _open_input, ( const dmv_input_t* input, int* status ))
+/* A view from `input`; `dir` (allocated, may be NULL) is the directory of
+ * its file - relative image and font paths start there. It is the view's
+ * from now on, or freed. */
+static libdmview_t open_view(const dmv_input_t* input, char* dir, int* status)
 {
     uint8_t header[DMV_HEADER_SIZE];
     int ret = 0;
@@ -404,6 +407,8 @@ dmod_libdmview_api_declaration(1.0, libdmview_t, _open_input, ( const dmv_input_
         *status = 0;
     if (input == NULL || input->read == NULL)
     {
+        if (dir != NULL)
+            Dmod_Free(dir);
         if (status != NULL)
             *status = -EINVAL;
         return NULL;
@@ -429,8 +434,12 @@ dmod_libdmview_api_declaration(1.0, libdmview_t, _open_input, ( const dmv_input_
         v->magic = VIEW_MAGIC;
         v->captured = ROOT;
         v->full = true;
+        v->dir = dir;
+        dir = NULL;
         ret = load_tables(v, input, header);
     }
+    if (dir != NULL)
+        Dmod_Free(dir);
     if (ret != 0)
     {
         if (v != NULL)
@@ -447,6 +456,11 @@ dmod_libdmview_api_declaration(1.0, libdmview_t, _open_input, ( const dmv_input_
             exec_handler(v, ROOT, v->items[i].label);
     }
     return v;
+}
+
+dmod_libdmview_api_declaration(1.0, libdmview_t, _open_input, ( const dmv_input_t* input, int* status ))
+{
+    return open_view(input, NULL, status);
 }
 
 /* static: its address is handed out as a callback - a global function's
@@ -481,16 +495,17 @@ dmod_libdmview_api_declaration(1.0, libdmview_t, _open, ( const char* path, int*
     input.read = file_read;
     input.ctx = file;
     input.size = (uint32_t)size;
-    libdmview_t v = libdmview_open_input(&input, status);
-    Dmod_FileClose(file);
 
-    /* Relative image paths start in the view's directory */
+    /* Relative image and font paths start in the view's directory */
     const char* slash = strrchr(path, '/');
-    if (v != NULL && slash != NULL && (v->dir = Dmod_Malloc((size_t)(slash - path) + 1U)) != NULL)
+    char* dir = NULL;
+    if (slash != NULL && (dir = Dmod_Malloc((size_t)(slash - path) + 1U)) != NULL)
     {
-        memcpy(v->dir, path, (size_t)(slash - path));
-        v->dir[slash - path] = '\0';
+        memcpy(dir, path, (size_t)(slash - path));
+        dir[slash - path] = '\0';
     }
+    libdmview_t v = open_view(&input, dir, status);
+    Dmod_FileClose(file);
     return v;
 }
 
@@ -503,6 +518,17 @@ dmod_libdmview_api_declaration(1.0, void, _close, ( libdmview_t view ))
 {
     if (is_view(view))
         free_view(view);
+}
+
+dmod_libdmview_api_declaration(1.0, int, _get_size, ( libdmview_t view, uint16_t* width, uint16_t* height ))
+{
+    if (!is_view(view))
+        return -EINVAL;
+    if (width != NULL)
+        *width = view->width;
+    if (height != NULL)
+        *height = view->height;
+    return 0;
 }
 
 dmod_libdmview_api_declaration(1.0, void, _invalidate, ( libdmview_t view ))

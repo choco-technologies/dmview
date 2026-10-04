@@ -10,8 +10,10 @@
  *
  *  - "builtin-N": the built-in 8x8 font, magnified by N / 8 - never a file
  *    (a console's fixed-width font);
- *  - a path, when the spec has a '/';
- *  - else $DMVIEW_FONTS/<spec>.dmvf;
+ *  - a path, when the spec has a '/' - a relative one starts in the view's
+ *    directory, like an image's;
+ *  - else <view's directory>/<spec>.dmvf - fonts installed next to a view -
+ *    and when there is none $DMVIEW_FONTS/<spec>.dmvf;
  *  - the built-in font, when there is no such file or it is not valid.
  */
 
@@ -160,7 +162,34 @@ void font_release(font_t* font)
     dmosi_mutex_unlock(g_fonts_lock);
 }
 
-void font_resolve(const char* spec, font_t* font)
+/* dir + '/' + name + suffix, allocated */
+static char* join(const char* dir, const char* name, const char* suffix)
+{
+    size_t ld = strlen(dir), ln = strlen(name), ls = strlen(suffix);
+    bool slash = ld > 0 && dir[ld - 1U] != '/';
+    char* path = Dmod_Malloc(ld + (slash ? 1U : 0U) + ln + ls + 1U);
+    if (path == NULL)
+        return NULL;
+    memcpy(path, dir, ld);
+    if (slash)
+        path[ld++] = '/';
+    memcpy(path + ld, name, ln);
+    memcpy(path + ld + ln, suffix, ls + 1U);
+    return path;
+}
+
+/* The font file at dir/name+suffix, NULL when there is none */
+static font_file_t* open_in(const char* dir, const char* name, const char* suffix)
+{
+    char* path = join(dir, name, suffix);
+    if (path == NULL)
+        return NULL;
+    font_file_t* f = open_shared(path);
+    Dmod_Free(path);
+    return f;
+}
+
+void font_resolve(const char* spec, const char* dir, font_t* font)
 {
     font->file = NULL;
     font->scale = font_scale_for(spec);
@@ -169,24 +198,14 @@ void font_resolve(const char* spec, font_t* font)
 
     if (strchr(spec, '/') != NULL)
     {
-        font->file = open_shared(spec);
+        font->file = (spec[0] != '/' && dir != NULL) ? open_in(dir, spec, "") : open_shared(spec);
         return;
     }
-    const char* dir = Dmod_GetEnv("DMVIEW_FONTS");
-    if (dir == NULL || dir[0] == '\0')
+    if (dir != NULL && (font->file = open_in(dir, spec, FONT_SUFFIX)) != NULL)
         return;
-    size_t ld = strlen(dir), ls = strlen(spec);
-    bool slash = dir[ld - 1U] != '/';
-    char* path = Dmod_Malloc(ld + (slash ? 1U : 0U) + ls + sizeof(FONT_SUFFIX));
-    if (path == NULL)
-        return;
-    memcpy(path, dir, ld);
-    if (slash)
-        path[ld++] = '/';
-    memcpy(path + ld, spec, ls);
-    memcpy(path + ld + ls, FONT_SUFFIX, sizeof(FONT_SUFFIX));
-    font->file = open_shared(path);
-    Dmod_Free(path);
+    const char* fonts = Dmod_GetEnv("DMVIEW_FONTS");
+    if (fonts != NULL && fonts[0] != '\0')
+        font->file = open_in(fonts, spec, FONT_SUFFIX);
 }
 
 const uint8_t* font_glyph(const font_file_t* f, uint32_t codepoint)

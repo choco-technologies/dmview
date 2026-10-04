@@ -36,6 +36,13 @@ dmod_libdmview_api(1.0, libdmview_t, _open, ( const char* path, int* status ));
 /** @brief libdmview_open() from any input. */
 dmod_libdmview_api(1.0, libdmview_t, _open_input, ( const dmv_input_t* input, int* status ));
 
+/**
+ * @brief Size the view was designed for (`.size`) - a service can turn a
+ *        portrait view on a landscape display by it.
+ * @return 0, -EINVAL
+ */
+dmod_libdmview_api(1.0, int, _get_size, ( libdmview_t view, uint16_t* width, uint16_t* height ));
+
 /** @brief Release a view. Safe on NULL. */
 dmod_libdmview_api(1.0, void, _close, ( libdmview_t view ));
 
