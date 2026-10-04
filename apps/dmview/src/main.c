@@ -385,10 +385,14 @@ static void show_view(service_t* s, char* path)
 
 static void run(service_t* s)
 {
-    uint32_t deadline = 0;
+    uint32_t deadline = 0;              /* Ms until what the view has due, from `deadline_from` */
+    uint32_t deadline_from = dmosi_get_tick_count();
     while (!libsystemd_stop_requested())
     {
-        uint32_t wait = (deadline < CLAIM_POLL_MS) ? deadline : CLAIM_POLL_MS;
+        /* What is left of it - drawing took some: a late frame waits for nothing */
+        uint32_t spent = dmosi_get_tick_count() - deadline_from;
+        uint32_t left = (deadline == LIBDMVIEW_NO_DEADLINE) ? deadline : (spent < deadline) ? deadline - spent : 0U;
+        uint32_t wait = (left < CLAIM_POLL_MS) ? left : CLAIM_POLL_MS;
         dmdrvi_input_state_t state;
         bool have_state = false;
 
@@ -406,6 +410,7 @@ static void run(service_t* s)
             (void)libdmview_input(s->view, &state, now);
         }
         deadline = (s->view != NULL) ? libdmview_update(s->view, now) : LIBDMVIEW_NO_DEADLINE;
+        deadline_from = now;
 
         /* A view going to another view, or a claim that came or went */
         const char* next = (s->view != NULL) ? libdmview_take_goto(s->view) : NULL;
