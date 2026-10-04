@@ -36,6 +36,7 @@ typedef struct
     libdmview_t         view;
     char*               view_path;
     dmosi_semaphore_t   wakeup;
+    bool                present;    /* The driver has DMDRVI_IOCTL_GFX_PRESENT */
 } service_t;
 
 static char* concat(const char* a, const char* b, const char* c)
@@ -52,6 +53,36 @@ static char* concat(const char* a, const char* b, const char* c)
 }
 
 /* ---- Devices ---- */
+
+/*
+ * Make `area` (NULL: everything) of what was drawn visible. With
+ * DMDRVI_IOCTL_GFX_PRESENT a double buffered display shows the finished
+ * frame at the next vertical blank - nothing is ever drawn on the screen -
+ * and the drawing buffer changes: the surface follows it. A driver without
+ * it gets the drawing flushed, as before.
+ */
+static void present(service_t* s, const dmdrvi_gfx_rect_t* area)
+{
+    if (s->present)
+    {
+        int ret = Dmod_Ioctl(s->gfx, DMDRVI_IOCTL_GFX_PRESENT, (void*)area);
+        if (ret == 0)
+        {
+            void* pixels = NULL;
+            if (s->info.buffer_count > 1 && Dmod_Ioctl(s->gfx, DMDRVI_IOCTL_GFX_GET_FRAMEBUFFER, &pixels) == 0 &&
+                pixels != NULL)
+                s->surface.pixels = pixels;
+            return;
+        }
+        if (ret != -ENOTTY)
+        {
+            DMOD_LOG_WARN("dmview: presenting on %s failed (%d)\n", s->name, ret);
+            return;
+        }
+        s->present = false;
+    }
+    (void)dmvfs_fflush(s->gfx);         /* The driver makes the drawing visible (data cache) */
+}
 
 static bool open_display(service_t* s, const char* path)
 {
@@ -73,6 +104,9 @@ static bool open_display(service_t* s, const char* path)
     s->surface.height = s->info.height;
     s->surface.stride = s->info.stride;
     s->surface.format = (uint8_t)s->info.pixel_format;
+    s->present = true;
+    if (s->info.buffer_count > 1)
+        DMOD_LOG_INFO("dmview: %s is double buffered\n", path);
     return true;
 }
 
@@ -176,6 +210,7 @@ static void show_view(service_t* s, char* path)
         DMOD_LOG_WARN("dmview: no view for %s (DMVIEW_VIEWS, DMVIEW_DEFAULT)\n", s->name);
         dmdrvi_gfx_fill_rect_t all = { 0, 0, s->info.width, s->info.height, 0xFF000000u };
         (void)Dmod_Ioctl(s->gfx, DMDRVI_IOCTL_GFX_FILL_RECT, &all);
+        present(s, NULL);
         return;
     }
     int status = 0;
@@ -221,7 +256,10 @@ static void run(service_t* s)
 
         libdmview_rect_t changed;
         if (s->view != NULL && libdmview_render(s->view, &s->surface, &changed) > 0)
-            (void)dmvfs_fflush(s->gfx);     /* The driver makes the drawing visible (data cache) */
+        {
+            dmdrvi_gfx_rect_t area = { (uint16_t)changed.x, (uint16_t)changed.y, changed.w, changed.h };
+            present(s, &area);
+        }
     }
 }
 

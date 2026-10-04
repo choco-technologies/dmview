@@ -41,7 +41,12 @@ whatever the display's driver. The service:
    - `$DMVIEW_VIEWS/<display name>.dmv`, if that file exists,
    - `$DMVIEW_DEFAULT`;
 4. waits for input (at most 100 ms, or until the next timer), runs the
-   events and draws what changed, then flushes the display.
+   events and draws what changed, then presents it
+   (`DMDRVI_IOCTL_GFX_PRESENT` with the area drawn). On a double buffered
+   display the frame is drawn off the screen and shown whole at the next
+   vertical blank - no drawing is ever visible; the driver copies the area
+   into the other buffer, so only what changed is ever drawn. A driver
+   without `PRESENT` gets the drawing flushed.
 
 The display's name is its node name - the section name of its
 configuration: `[lcd]` is `/dev/lcd`, served by `dmview@lcd`. With two
@@ -93,7 +98,8 @@ for (;;)
     uint32_t next = libdmview_update(view, now_ms);      /* timers, long press */
     libdmview_rect_t changed;
     if (libdmview_render(view, &s, &changed) > 0)
-        /* flush `changed` to the display */;
+        /* present `changed` - DMDRVI_IOCTL_GFX_PRESENT - and draw into
+           the buffer DMDRVI_IOCTL_GFX_GET_FRAMEBUFFER gives next */;
 }
 libdmview_close(view);
 ```

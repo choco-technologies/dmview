@@ -72,7 +72,7 @@ target_include_directories(${DMOD_MODULE_NAME}_if INTERFACE
 # dmhaman: SIGNAL calls a dmhaman handler by name.
 # dmosi:   the display registry's lock, pids of claiming processes.
 dmod_link_modules(${DMOD_MODULE_NAME}
-    dmdrvi@>=2.4
+    dmdrvi@>=2.5
     dmhaman
     dmosi
 )

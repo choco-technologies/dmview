@@ -14,7 +14,7 @@ dmod_add_test(${DMOD_MODULE_NAME} ${DMOD_MODULE_VERSION}
 )
 
 dmod_link_modules(${DMOD_MODULE_NAME}
-    dmdrvi@>=2.4
+    dmdrvi@>=2.5
 )
 
 target_link_libraries(${DMOD_MODULE_NAME}
