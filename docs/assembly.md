@@ -564,7 +564,7 @@ Every other format (PNG, JPEG, BMP, ...) is converted into `.dmvi` by
 per source format):
 
 - **at build time**: `dmod` converts the images found in
-  `DMOD_FIXTURES_PATHS` with todmvi on the build host, like the views with
+  `DMOD_ASSETS_PATHS` with todmvi on the build host, like the views with
   todmv, so the device only gets `.dmvi` files;
 - **on a device** that has todmvi and the decoders it needs (a target with
   more memory, dmod-os): e.g. a photo viewer converts a JPEG from an SD card
