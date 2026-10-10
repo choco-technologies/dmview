@@ -203,6 +203,7 @@ typedef struct
     int32_t     sx, sy;             /* Scroll offset */
     int32_t     cw, ch;             /* Scrolled content size */
     uint16_t    handlers[DMV_EVENT_COUNT];  /* Label word offsets, DMV_NONE */
+    uint8_t     seen;               /* Its opacity times the boxes' around it, as last drawn: 0 - not seen, takes no contact */
 } rbox_t;
 
 /** One level of box nesting while executing. */

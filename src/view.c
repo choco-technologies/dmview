@@ -320,6 +320,8 @@ static int load_tables(struct libdmview* v, const dmv_input_t* in, const uint8_t
     }
     memset(v->boxes, 0, v->box_count * sizeof(rbox_t));
     for (uint32_t i = 0; i < v->box_count; i++)
+        v->boxes[i].seen = 255u;                    /* Seen until a draw says otherwise */
+    for (uint32_t i = 0; i < v->box_count; i++)
     {
         const uint8_t* p = raw + i * sizeof(dmv_box_t);
         rbox_t* b = &v->boxes[i];

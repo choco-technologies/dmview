@@ -1,0 +1,37 @@
+; Two screens one on another, as a page's views: the one below shown, with
+; a button; the one on top hidden by its opacity ($top), with a box taking
+; no contact over the button - and a button of its own elsewhere.
+.view   hidden
+.entry  draw
+
+.var    $top,    int, 0
+.var    $below,  int, 0
+.var    $above,  int, 0
+
+draw:
+        FILL    #000000
+        BOX     @screen1, 0, 0, 64, 32
+        BOX     @button, 10, 10, 20, 10                 ; 10..29 x 10..19
+        ON      CLICK, press_below
+        FILL    #0000FF
+        END
+        END
+        BOX     @screen2, 0, 0, 64, 32
+        OPACITY $top
+        BOX     @cover, 0, 0, 40, 32                    ; over the button, no handler
+        FILL    #FF0000
+        END
+        BOX     @other, 44, 10, 10, 10
+        ON      CLICK, press_above
+        FILL    #00FF00
+        END
+        END
+        RET
+
+press_below:
+        ADD     $below, 1
+        RET
+
+press_above:
+        ADD     $above, 1
+        RET
