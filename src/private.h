@@ -321,6 +321,7 @@ void            draw_icon(const libdmview_surface_t* s, const rect_t* clip, int3
 const char* view_string(const struct libdmview* v, uint32_t index);
 void        view_set_int(struct libdmview* v, uint32_t index, int32_t value);
 void        view_set_string(struct libdmview* v, uint32_t index, const char* value);
+void        view_append_string(struct libdmview* v, uint32_t index, const char* tail);
 void        view_invalidate_deps(struct libdmview* v, uint32_t word, uint32_t bit);
 void        view_mark_dirty(struct libdmview* v, int32_t box);
 

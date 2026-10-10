@@ -544,6 +544,13 @@ static void run(struct libdmview* v, uint32_t pc, bool box_region)
                 view_set_string(v, rd16(insn + OPOFF(FORMAT, 0)), text);
                 break;
             }
+            case DMV_OP_APPEND:
+            {
+                uint16_t d = rd16(insn + OPOFF(APPEND, 0));
+                record(v, d / 32U, 1U << (d % 32U));
+                view_append_string(v, d, vstr(v, insn, 1, OPOFF(APPEND, 1)));
+                break;
+            }
 
             /* ---- Input ---- */
             case DMV_OP_ON:

@@ -489,6 +489,7 @@ variable declared with `.var`; built-in variables are read-only.
 | 0x48 | `CLAMP` | `$d, lo, hi` | d = min(max(d, lo), hi) |
 | 0x49 | `TOGGLE` | `$d` | d = (d == 0) ? 1 : 0 |
 | 0x4A | `FORMAT` | `$d, str, n` | Format n into string variable d: `str` with one `%d` or `%x` - optionally with a width, padded with spaces or, after a `0`, with zeros (`%02d`, `%4x`) - and `%%` for `%` |
+| 0x4B | `APPEND` | `$d, str` | Append `str` (a literal or a string variable) to string variable d, as much of it as d's size takes - text put together from pieces (format 0.5) |
 
 `str` can be a string variable, so a format can be made by `FORMAT` itself -
 a clock from minutes:
@@ -500,6 +501,15 @@ a clock from minutes:
         SET     $n, $minutes
         MOD     $n, 60
         FORMAT  $clock, $text, $n               ; 12:05
+```
+
+Text from several pieces - a number and a unit, a name and a value - is
+`FORMAT` or `SET` followed by `APPEND`s:
+
+```
+        FORMAT  $speed, "%d", $kmh              ; "68"
+        APPEND  $speed, " "
+        APPEND  $speed, $unit                   ; "68 km/h"
 ```
 
 A variable is "changed" only when its value differs from the previous one -

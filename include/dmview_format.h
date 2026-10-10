@@ -25,10 +25,10 @@
 
 /** Format version this header describes. */
 #define DMV_VERSION_MAJOR        0
-#define DMV_VERSION_MINOR        4
+#define DMV_VERSION_MINOR        5
 
 /** Header size: version 0.2 added the gradient tables at its end (0.3:
- * OPACITY, 0.4: ICON - no change to the header). */
+ * OPACITY, 0.4: ICON, 0.5: APPEND - no change to the header). */
 #define DMV_HEADER_SIZE          96u
 #define DMV_HEADER_SIZE_0_1      80u
 
@@ -106,6 +106,7 @@ typedef enum
     DMV_OP_CLAMP     = 0x48,
     DMV_OP_TOGGLE    = 0x49,
     DMV_OP_FORMAT    = 0x4A,
+    DMV_OP_APPEND    = 0x4B,
 
     /* Input */
     DMV_OP_ON        = 0x60,
@@ -607,6 +608,7 @@ static const dmv_opcode_info_t dmv_opcode_table[DMV_OPCODE_TABLE_SIZE] = {
     OP(DMV_OP_CLAMP,    "CLAMP",    VARIA,  3, 0, F_NONE,  false, VAR, V32, V32),
     OP(DMV_OP_TOGGLE,   "TOGGLE",   VARIA,  1, 0, F_NONE,  false, VAR),
     OP(DMV_OP_FORMAT,   "FORMAT",   VARIA,  3, 0, F_NONE,  false, VAR, STR, V32),
+    OP(DMV_OP_APPEND,   "APPEND",   VARIA,  2, 0, F_NONE,  false, VAR, STR),
 
     OP(DMV_OP_ON,       "ON",       INPUT,  2, 0, F_NONE,  false, EVENT, LABEL),
 

@@ -274,6 +274,7 @@ static int dest_type(uint8_t opcode)
     {
         case DMV_OP_SET:    return -1;              /* Either */
         case DMV_OP_FORMAT: return DMV_VAR_STR;
+        case DMV_OP_APPEND: return DMV_VAR_STR;
         default:            return DMV_VAR_INT;
     }
 }

@@ -162,6 +162,30 @@ void view_set_string(struct libdmview* v, uint32_t index, const char* value)
         (void)Dmod_SetEnv(view_string(v, v->vars[index].env), dst, 1);
 }
 
+/* The string after what the variable holds - as much of it as its size takes */
+void view_append_string(struct libdmview* v, uint32_t index, const char* tail)
+{
+    char* dst = v->strs[index];
+    size_t n = strlen(dst), room = v->vars[index].capacity;
+    size_t m = strlen(tail);
+    if (n >= room || m == 0)
+        return;
+    if (m > room - n)
+        m = room - n;
+    if (tail >= dst && tail <= dst + room)
+    {
+        /* Appended to itself: copy it from before it grows */
+        memmove(dst + n, tail, m);
+    }
+    else
+        memcpy(dst + n, tail, m);
+    dst[n + m] = '\0';
+    if (!v->drawing)
+        view_invalidate_deps(v, index / 32U, 1U << (index % 32U));
+    if ((v->vars[index].flags & DMV_VARF_ENV) != 0)
+        (void)Dmod_SetEnv(view_string(v, v->vars[index].env), dst, 1);
+}
+
 /* ---- Loading ---- */
 
 static void free_view(struct libdmview* v)
