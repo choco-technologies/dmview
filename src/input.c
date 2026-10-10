@@ -72,14 +72,15 @@ static bool contains(const rect_t* r, int32_t x, int32_t y)
 
 /* The topmost visible box under (x, y) - boxes are drawn in code order, so
  * the one starting last is on top - or the nearest parent of it that takes
- * the contact. */
+ * the contact. A box not seen (its opacity, or one around it, 0: a screen
+ * hidden behind the shown one) takes none - what is seen beneath does. */
 static int32_t hit_test(const struct libdmview* v, int32_t x, int32_t y)
 {
     int32_t hit = ROOT;
     for (uint32_t i = 0; i < v->box_count; i++)
     {
         const rbox_t* b = &v->boxes[i];
-        if ((b->flags & BOXF_VISIBLE) != 0 && contains(&b->clip, x, y) &&
+        if ((b->flags & BOXF_VISIBLE) != 0 && b->seen != 0 && contains(&b->clip, x, y) &&
             (hit == ROOT || b->begin > v->boxes[hit].begin))
             hit = (int32_t)i;
     }

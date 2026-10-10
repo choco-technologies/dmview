@@ -258,6 +258,8 @@ static void enter_box(struct libdmview* v, const uint8_t* insn)
     f->view_clip = b->clip;
     f->box = index;
     f->alpha = parent->alpha;
+    if (v->drawing)
+        b->seen = (uint8_t)((parent->alpha > 255u) ? 255u : parent->alpha);
 }
 
 /* ---- The interpreter ---- */
@@ -362,6 +364,8 @@ static void run(struct libdmview* v, uint32_t pc, bool box_region)
                     int32_t a = v16(v, insn, 0, OPOFF(OPACITY, 0));
                     a = (a < 0) ? 0 : (a > DMV_OPACITY_MAX) ? DMV_OPACITY_MAX : a;
                     f->alpha = (v->frames[v->depth - 1].alpha * (uint32_t)a + 127u) / 255u;
+                    if (f->box != ROOT)
+                        v->boxes[f->box].seen = (uint8_t)((f->alpha > 255u) ? 255u : f->alpha);
                 }
                 break;
 

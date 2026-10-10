@@ -734,6 +734,37 @@ DMOD_TEST_STEP(libdmview_runs_long_press_and_timers)
     touch(0, 0, 0, 1700);
 }
 
+DMOD_TEST_STEP(libdmview_hidden_boxes_take_no_contact)
+{
+    int32_t value = 0;
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("hidden.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+
+    /* The screen on top is not seen: the button beneath it is clicked */
+    touch(1, 15, 15, 10);
+    touch(0, 0, 0, 20);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "below", &value), 0);
+    DMOD_TEST_EXPECT_EQ(value, 1);
+    touch(1, 48, 15, 30);                       /* Nor its own button */
+    touch(0, 0, 0, 40);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "above", &value), 0);
+    DMOD_TEST_EXPECT_EQ(value, 0);
+
+    /* Shown: it covers the button, its own takes the contact */
+    DMOD_TEST_EXPECT_EQ(libdmview_set_int(g_view, "top", 255), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    touch(1, 15, 15, 50);
+    touch(0, 0, 0, 60);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "below", &value), 0);
+    DMOD_TEST_EXPECT_EQ(value, 1);
+    touch(1, 48, 15, 70);
+    touch(0, 0, 0, 80);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "above", &value), 0);
+    DMOD_TEST_EXPECT_EQ(value, 1);
+}
+
 DMOD_TEST_STEP(libdmview_env_variables_and_goto)
 {
     int32_t value = 0;
