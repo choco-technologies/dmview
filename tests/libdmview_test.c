@@ -765,6 +765,39 @@ DMOD_TEST_STEP(libdmview_hidden_boxes_take_no_contact)
     DMOD_TEST_EXPECT_EQ(value, 1);
 }
 
+DMOD_TEST_STEP(libdmview_drags_scroll_boxes)
+{
+    int32_t value = 0;
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("scroll.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    DMOD_TEST_EXPECT_EQ(px(10, 10), 0xFFFF0000u);
+
+    /* A tap: the button inside */
+    touch(1, 10, 10, 10);
+    touch(0, 0, 0, 20);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "clicks", &value), 0);
+    DMOD_TEST_EXPECT_EQ(value, 1);
+
+    /* Moved less than the threshold: still the button's */
+    touch(1, 10, 15, 30);
+    touch(1, 10, 10, 40);
+    touch(0, 0, 0, 50);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "clicks", &value), 0);
+    DMOD_TEST_EXPECT_EQ(value, 2);
+
+    /* Dragged up past it: the list scrolls (as far as it goes), the button is not clicked */
+    touch(1, 10, 18, 60);
+    touch(1, 10, 8, 70);
+    touch(1, 10, 0, 80);
+    touch(0, 0, 0, 90);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "clicks", &value), 0);
+    DMOD_TEST_EXPECT_EQ(value, 2);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    DMOD_TEST_EXPECT_EQ(px(10, 10), 0xFF00FF00u);
+}
+
 DMOD_TEST_STEP(libdmview_env_variables_and_goto)
 {
     int32_t value = 0;

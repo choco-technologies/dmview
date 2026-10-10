@@ -1,0 +1,25 @@
+; A list in a scroll box: 20 px of it seen of 40 - red, then green - the
+; red row a button. Dragging it scrolls it (past .scrollslop, 8 px), a tap
+; clicks the button.
+.view   scroll
+.entry  draw
+
+.var    $clicks, int, 0
+
+draw:
+        FILL    #000000
+        BOX     @list, 0, 0, 32, 20
+        SCROLL  32, 40, VERTICAL
+        BOX     @red, 0, 0, 32, 20
+        ON      CLICK, click
+        FILL    #FF0000
+        END
+        BOX     @green, 0, 20, 32, 20
+        FILL    #00FF00
+        END
+        END
+        RET
+
+click:
+        ADD     $clicks, 1
+        RET

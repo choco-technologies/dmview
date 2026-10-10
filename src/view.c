@@ -239,6 +239,10 @@ static int load_tables(struct libdmview* v, const dmv_input_t* in, const uint8_t
     v->height = rd16(h + 14);
     v->entry = rd16(h + 18);
     v->longpress_ms = rd16(h + 20);
+    v->scrollslop = rd16(h + 22);
+    if (v->scrollslop == 0)
+        v->scrollslop = DMV_DEFAULT_SCROLLSLOP;
+    v->scrolling = ROOT;
 
     if ((v->code = read_block(in, code_at, v->code_size, &status)) == NULL ||
         (v->strings = read_strings(in, strings_at, v->string_count, &status)) == NULL)
