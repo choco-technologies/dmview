@@ -47,6 +47,7 @@ static inline uint8_t layout_offset(uint8_t op, unsigned i)
         case DMV_OP_CLAMP:    { static const uint8_t o[] = { 4, 8, 12 };                 return o[i]; }
         case DMV_OP_TOGGLE:   { static const uint8_t o[] = { 4 };                        return o[i]; }
         case DMV_OP_FORMAT:   { static const uint8_t o[] = { 4, 6, 8 };                  return o[i]; }
+        case DMV_OP_APPEND:   { static const uint8_t o[] = { 4, 6 };                     return o[i]; }
         case DMV_OP_ON:       { static const uint8_t o[] = { 4, 6 };                     return o[i]; }
         case DMV_OP_REDRAW:
         case DMV_OP_EXEC:

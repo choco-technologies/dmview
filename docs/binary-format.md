@@ -1,7 +1,7 @@
 # dmview Binary Format (`.dmv`)
 
-Status: **version 0.4** - follows the [assembly draft](assembly.md). Version
-0.2 added gradients, 0.3 the `OPACITY` instruction, 0.4 `ICON`.
+Status: **version 0.5** - follows the [assembly draft](assembly.md). Version
+0.2 added gradients, 0.3 the `OPACITY` instruction, 0.4 `ICON`, 0.5 `APPEND`.
 
 A `.dmv` file is what `libtodmv` produces from `.dmvs` assembly and what
 `libdmview` executes. Everything is **little-endian**; every table starts at a
@@ -57,7 +57,7 @@ start of the file. An empty table has count 0.
 
 A version 0.1 header ends at 80, without the gradient tables. `libtodmv`
 always writes the 96-byte header, but marks a view with the oldest version
-that has what it uses - 0.4 with `ICON`, 0.3 with `OPACITY`, 0.2 with gradients, else 0.1: a
+that has what it uses - 0.5 with `APPEND`, 0.4 with `ICON`, 0.3 with `OPACITY`, 0.2 with gradients, else 0.1: a
 reader that knows only 0.1 runs a 0.1 view, it finds every table through
 the header and never looks at bytes 80 ... 95.
 

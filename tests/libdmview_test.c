@@ -389,6 +389,16 @@ DMOD_TEST_STEP(libdmview_formats_with_padding)
     DMOD_TEST_EXPECT_EQ(libdmview_get_size(NULL, &w, &h), -EINVAL);
 }
 
+DMOD_TEST_STEP(libdmview_appends_strings)
+{
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("append.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    DMOD_TEST_EXPECT_TRUE(same_as_below(0, 64, 0));     /* "68" " " "km" "/h": "68 km/h" */
+    DMOD_TEST_EXPECT_TRUE(same_as_below(0, 64, 16));    /* "ab" + "cdef" into str[4]: "abcd" */
+}
+
 /* ---- Antialiasing ---- */
 
 

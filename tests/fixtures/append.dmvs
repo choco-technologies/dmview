@@ -1,0 +1,27 @@
+; APPEND: text put together from pieces - every line is drawn above the same
+; text as a literal, in the built-in font, on a 64x32 surface
+.view   append
+.size   64, 32
+.entry  draw
+
+.font   fixed, "builtin-8"
+
+.var    $a,     str[12], ""
+.var    $b,     str[4],  ""
+.var    $t,     str[8],  "km"
+.var    $n,     str[8],  ""
+
+draw:
+        FILL    #000000
+        FORMAT  $n, "%d", 68
+        SET     $a, $n
+        APPEND  $a, " "
+        APPEND  $a, $t
+        APPEND  $a, "/h"
+        TEXT    0, 0, 64, 8, $a, fixed, #FFFFFF, LEFT     ; "68 km/h"
+        TEXT    0, 8, 64, 8, "68 km/h", fixed, #FFFFFF, LEFT
+        SET     $b, "ab"
+        APPEND  $b, "cdef"
+        TEXT    0, 16, 64, 8, $b, fixed, #FFFFFF, LEFT    ; "abcd": its size
+        TEXT    0, 24, 64, 8, "abcd", fixed, #FFFFFF, LEFT
+        RET
