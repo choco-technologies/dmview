@@ -89,6 +89,33 @@ static int32_t hit_test(const struct libdmview* v, int32_t x, int32_t y)
     return hit;
 }
 
+/* Whether a box scrolls along an axis: SCROLL, its content larger than it, the axis allowed */
+static bool scrolls(const rbox_t* b, bool vertical)
+{
+    if ((b->flags & BOXF_VISIBLE) == 0 || b->seen == 0)
+        return false;
+    uint8_t axis = vertical ? DMV_SCROLL_VERTICAL : DMV_SCROLL_HORIZONTAL;
+    bool allowed = (b->scroll_flags & (DMV_SCROLL_VERTICAL | DMV_SCROLL_HORIZONTAL)) == 0 || (b->scroll_flags & axis) != 0;
+    return allowed && (vertical ? b->ch > b->bounds.y1 - b->bounds.y0 : b->cw > b->bounds.x1 - b->bounds.x0);
+}
+
+/* The scroll box a contact at (x, y) moving along an axis drags: the topmost seen box there, or the nearest box
+ * around it that scrolls that way */
+static int32_t scroll_box_at(const struct libdmview* v, int32_t x, int32_t y, bool vertical)
+{
+    int32_t top = ROOT;
+    for (uint32_t i = 0; i < v->box_count; i++)
+    {
+        const rbox_t* b = &v->boxes[i];
+        if ((b->flags & BOXF_VISIBLE) != 0 && b->seen != 0 && contains(&b->clip, x, y) &&
+            (top == ROOT || b->begin > v->boxes[top].begin))
+            top = (int32_t)i;
+    }
+    while (top != ROOT && !scrolls(&v->boxes[top], vertical))
+        top = v->boxes[top].parent;
+    return top;
+}
+
 static void fire(struct libdmview* v, int32_t box, uint8_t event, int32_t x, int32_t y, int32_t dx, int32_t dy)
 {
     uint16_t label = (box != ROOT) ? v->boxes[box].handlers[event] : DMV_NONE;
@@ -129,6 +156,9 @@ dmod_libdmview_api_declaration(1.0, int, _input, ( libdmview_t view, const dmdrv
         v->press_ms = now_ms;
         v->last_x = x;
         v->last_y = y;
+        v->start_x = x;
+        v->start_y = y;
+        v->scrolling = ROOT;
         v->captured = hit_test(v, x, y);
         pressed_changed(v, v->captured);
         fire(v, v->captured, DMV_EVENT_PRESS, x, y, 0, 0);
@@ -138,12 +168,35 @@ dmod_libdmview_api_declaration(1.0, int, _input, ( libdmview_t view, const dmdrv
         int32_t dx = x - v->last_x, dy = y - v->last_y;
         v->last_x = x;
         v->last_y = y;
-        fire(v, v->captured, DMV_EVENT_DRAG, x, y, dx, dy);
+        int32_t mx = x - v->start_x, my = y - v->start_y;
+        int32_t ax = (mx < 0) ? -mx : mx, ay = (my < 0) ? -my : my;
+        if (v->scrolling == ROOT && (ax > (int32_t)v->scrollslop || ay > (int32_t)v->scrollslop))
+        {
+            /* Past the threshold: a scroll box around the contact takes it over - the box pressed is released, not clicked */
+            int32_t box = scroll_box_at(v, v->start_x, v->start_y, ay >= ax);
+            if (box == ROOT)
+                box = scroll_box_at(v, v->start_x, v->start_y, ay < ax);
+            if (box != ROOT)
+            {
+                int32_t held = v->captured;
+                v->scrolling = box;
+                v->scroll_sx = v->boxes[box].sx;
+                v->scroll_sy = v->boxes[box].sy;
+                v->captured = ROOT;
+                pressed_changed(v, held);
+                fire(v, held, DMV_EVENT_RELEASE, x, y, 0, 0);
+            }
+        }
+        if (v->scrolling != ROOT)
+            view_scroll_to(v, (uint16_t)v->scrolling, v->scroll_sx - mx, v->scroll_sy - my);
+        else
+            fire(v, v->captured, DMV_EVENT_DRAG, x, y, dx, dy);
     }
     else if (!down && v->down)
     {
         int32_t box = v->captured;
         v->down = false;
+        v->scrolling = ROOT;
         v->captured = ROOT;
         pressed_changed(v, box);
         if (box != ROOT)

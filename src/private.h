@@ -278,6 +278,10 @@ struct libdmview
     bool            down;
     bool            long_fired;
     int32_t         last_x, last_y;
+    int32_t         start_x, start_y;   /* Where the contact went down */
+    int32_t         scrolling;          /* The scroll box the contact drags (past .scrollslop), ROOT: none */
+    int32_t         scroll_sx, scroll_sy;   /* Its offset when it took the contact over */
+    uint16_t        scrollslop;         /* .scrollslop, px */
     uint32_t        press_ms;
     uint32_t        buttons;
     bool            have_now;
@@ -353,5 +357,8 @@ uint32_t    gradient_color(const paint_t* paint, uint8_t format, int32_t x, int3
 uint8_t     font_scale_for(const char* spec);
 void        draw_text(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h,
                       const char* text, const font_t* font, const paint_t* paint, uint8_t align);
+
+/* exec.c: a scroll box's offset (clamped to its content) */
+void    view_scroll_to(struct libdmview* v, uint16_t box, int32_t x, int32_t y);
 
 #endif /* LIBDMVIEW_PRIVATE_H */

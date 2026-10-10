@@ -224,6 +224,11 @@ static void scroll_to(struct libdmview* v, uint16_t box, int32_t x, int32_t y)
     view_invalidate_deps(v, v->dep_words - 1U, DEP_SCROLL);
 }
 
+void view_scroll_to(struct libdmview* v, uint16_t box, int32_t x, int32_t y)
+{
+    scroll_to(v, box, x, y);
+}
+
 /* ---- Boxes ---- */
 
 static void enter_box(struct libdmview* v, const uint8_t* insn)

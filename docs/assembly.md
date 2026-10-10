@@ -118,7 +118,7 @@ the invalidated area. The view's root is always treated as opaque.
 - `a` can be a variable: changing it redraws the box. A translucent box and
   everything in it is never opaque - a redraw starts beneath it, so the
   blend never adds up. `OPAQUE` on such a box is ignored.
-- `OPACITY 0` draws nothing; the box is still there for input.
+- `OPACITY 0` draws nothing, and the box (or one inside it) takes no contact: a touch goes to what is seen beneath it, as with a page's screen hidden behind the one shown.
 
 ### Scrolling
 
