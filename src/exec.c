@@ -598,6 +598,10 @@ static void run(struct libdmview* v, uint32_t pc, bool box_region)
                 break;
             case DMV_OP_SETFOCUS:
                 break;
+            case DMV_OP_EMIT:
+                if (!v->drawing)
+                    claims_emit(v, vstr(v, insn, 0, OPOFF(EMIT, 0)), v32(v, insn, 1, OPOFF(EMIT, 1)));
+                break;
 
             default:
                 return;

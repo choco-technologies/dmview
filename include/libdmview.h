@@ -141,4 +141,46 @@ dmod_libdmview_api(1.0, int, _claim, ( const char* display, const char* view_pat
 /** @brief Drop a claim. -ENOENT when there is none with this id. */
 dmod_libdmview_api(1.0, int, _release, ( uint32_t claim ));
 
+/* ---- The channel of a claim ----
+ *
+ * A claim is also a channel between the application and its view: the
+ * view's properties (`.prop $var, type, init, "name"`), which both may set
+ * and read - a change made by the application runs the view's `.change`
+ * handlers -, and the events the view emits (`EMIT "name", value`), which
+ * the application takes in order. Names are the view's own: two
+ * applications with a property "title" do not meet.
+ *
+ * The properties are read from the view file when it is claimed, so a
+ * name or a type the view does not have is an error at once. What the
+ * application sets reaches the view on the service's thread within
+ * 100 ms (the service's poll) - also before the view is shown.
+ */
+
+/** @brief Set an integer property of the claim's view. -ENOENT (no claim, no such property), -EINVAL (not an integer). */
+dmod_libdmview_api(1.0, int, _prop_set_int, ( uint32_t claim, const char* name, int32_t value ));
+
+/** @brief Set a string property (cut to its size). -ENOENT, -EINVAL (not a string). */
+dmod_libdmview_api(1.0, int, _prop_set_string, ( uint32_t claim, const char* name, const char* value ));
+
+/** @brief An integer property - as the view or the application last set it. -ENOENT, -EINVAL. */
+dmod_libdmview_api(1.0, int, _prop_get_int, ( uint32_t claim, const char* name, int32_t* value ));
+
+/** @brief A string property. -ENOENT, -EINVAL, -ERANGE (@p value too small: cut). */
+dmod_libdmview_api(1.0, int, _prop_get_string, ( uint32_t claim, const char* name, char* value, size_t size ));
+
+/**
+ * @brief Take the next event the claim's view emitted, waiting for one at
+ *        most @p timeout_ms (0: does not wait, -1: no limit).
+ *
+ * @return 0, -ETIMEDOUT, -ENOENT (no such claim, or it was released while waiting)
+ */
+dmod_libdmview_api(1.0, int, _wait_event, ( uint32_t claim, libdmview_event_t* event, int32_t timeout_ms ));
+
+/**
+ * @brief Connect a view to the display's newest claim (called by the
+ *        service after it showed the view the claim is for): its properties
+ *        and events go through the claim from now on. No claim: none.
+ */
+dmod_libdmview_api(1.0, int, _attach, ( libdmview_t view, libdmview_display_t display ));
+
 #endif /* LIBDMVIEW_H */

@@ -290,6 +290,9 @@ struct libdmview
     char*           goto_path;
     char*           goto_taken;
 
+    /* The claim the view is attached to (libdmview_attach()), 0: none */
+    uint32_t        claim;
+
     /* Images */
     char*           dir;            /* Directory of the view file - relative image paths start there */
     uint32_t        slot_count;
@@ -302,6 +305,9 @@ dmv_status_t dmv_validate(const dmv_input_t* input, uint32_t* error_offset);
 /* claims.c */
 int         claims_init(void);
 void        claims_deinit(void);
+void        claims_publish(struct libdmview* v, uint32_t index);
+void        claims_emit(struct libdmview* v, const char* name, int32_t value);
+void        claims_apply(struct libdmview* v);
 
 /* fontfile.c */
 int             fonts_init(void);
