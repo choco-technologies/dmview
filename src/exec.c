@@ -744,6 +744,28 @@ static void redraw(struct libdmview* v, int32_t target, const rect_t* area)
     run(v, b->begin * DMV_CODE_WORD, true);
 }
 
+/*
+ * A box that changed but is not seen - a screen of a page behind the one
+ * shown, its opacity 0 - draws nothing, yet redrawing it redraws what is
+ * seen beneath it (a page's animations ran under the shown page all the
+ * time). Unseen: a box around it was not seen when last drawn (when that
+ * one's opacity changes, it is redrawn itself, with all inside it), or it
+ * was not seen itself and its OPACITY still makes it so.
+ */
+static bool stays_unseen(struct libdmview* v, const rbox_t* b)
+{
+    for (int32_t p = b->parent; p != ROOT; p = v->boxes[p].parent)
+    {
+        if (v->boxes[p].seen == 0)
+            return true;
+    }
+    if (b->seen != 0)
+        return false;
+    const uint8_t* insn = v->code + b->begin * DMV_CODE_WORD;
+    const uint8_t* next = insn + insn[1];
+    return next[0] == DMV_OP_OPACITY && v16(v, next, 0, OPOFF(OPACITY, 0)) <= 0;
+}
+
 void exec_draw(struct libdmview* v, rect_t* changed)
 {
     rect_t screen = { 0, 0, v->surface_w, v->surface_h };
@@ -766,7 +788,7 @@ void exec_draw(struct libdmview* v, rect_t* changed)
             rbox_t* b = &v->boxes[i];
             if ((b->flags & BOXF_DIRTY) == 0)
                 continue;
-            if ((b->flags & BOXF_VISIBLE) == 0)
+            if ((b->flags & BOXF_VISIBLE) == 0 || stays_unseen(v, b))
             {
                 b->flags &= (uint8_t)~BOXF_DIRTY;
                 continue;

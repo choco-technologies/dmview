@@ -742,6 +742,10 @@ DMOD_TEST_STEP(libdmview_hidden_boxes_take_no_contact)
         return;
     DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
 
+    /* What the hidden screen shows changes: nothing is drawn */
+    DMOD_TEST_EXPECT_EQ(libdmview_set_int(g_view, "tick", 9), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 0);
+
     /* The screen on top is not seen: the button beneath it is clicked */
     touch(1, 15, 15, 10);
     touch(0, 0, 0, 20);
@@ -755,6 +759,10 @@ DMOD_TEST_STEP(libdmview_hidden_boxes_take_no_contact)
     /* Shown: it covers the button, its own takes the contact */
     DMOD_TEST_EXPECT_EQ(libdmview_set_int(g_view, "top", 255), 0);
     DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    DMOD_TEST_EXPECT_EQ(px(1, 29), 0xFFFFFFFFu);    /* The bar as $tick has it now */
+    DMOD_TEST_EXPECT_EQ(px(9, 25), 0xFFFFFF00u);
+    DMOD_TEST_EXPECT_EQ(libdmview_set_int(g_view, "tick", 20), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);     /* Seen: drawn */
     touch(1, 15, 15, 50);
     touch(0, 0, 0, 60);
     DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "below", &value), 0);

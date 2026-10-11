@@ -1,12 +1,14 @@
 ; Two screens one on another, as a page's views: the one below shown, with
 ; a button; the one on top hidden by its opacity ($top), with a box taking
-; no contact over the button - and a button of its own elsewhere.
+; no contact over the button - and a button of its own elsewhere. $tick
+; changes what the hidden screen shows: a bar's width, a box's place.
 .view   hidden
 .entry  draw
 
 .var    $top,    int, 0
 .var    $below,  int, 0
 .var    $above,  int, 0
+.var    $tick,   int, 1
 
 draw:
         FILL    #000000
@@ -24,6 +26,12 @@ draw:
         BOX     @other, 44, 10, 10, 10
         ON      CLICK, press_above
         FILL    #00FF00
+        END
+        BOX     @bar, 0, 28, 64, 4
+        RECT    0, 0, $tick, 4, #FFFFFF
+        END
+        BOX     @mover, $tick, 24, 4, 4
+        FILL    #FFFF00
         END
         END
         RET
