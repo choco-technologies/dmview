@@ -377,6 +377,7 @@ static void show_view(service_t* s, char* path)
         uint16_t w = 0, h = 0;
         (void)libdmview_get_size(s->view, &w, &h);
         set_rotation(s, rotation_for(s, w, h));
+        (void)libdmview_attach(s->view, s->display);   /* The channel of the claim it is shown for */
         DMOD_LOG_INFO("dmview: showing %s on %s\n", path, s->name);
     }
 }
@@ -417,7 +418,11 @@ static void run(service_t* s)
         if (next != NULL)
             show_view(s, Dmod_StrDup(next));
         if (libdmview_display_generation(s->display) != s->generation)
+        {
             show_view(s, choose_view(s));
+            if (s->view != NULL)
+                (void)libdmview_attach(s->view, s->display);   /* (the same view, another claim) */
+        }
 
         libdmview_rect_t changed;
         if (s->view != NULL && libdmview_render(s->view, &s->surface, &changed) > 0)

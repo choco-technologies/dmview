@@ -152,8 +152,11 @@ static dmv_status_t check_vars(validator_t *v)
 
         bool ok = (type == DMV_VAR_INT && capacity == 0) ||
                   (type == DMV_VAR_STR && capacity > 0 && string_valid(v, init));
-        ok = ok && (flags & ~DMV_VARF_ENV) == 0 && string_valid(v, name);
-        ok = ok && ((flags & DMV_VARF_ENV) ? string_valid(v, env) : env == DMV_NONE);
+        /* Bound to dmenv or a property (version 0.6) - not both; `env` names it */
+        uint8_t binding = flags & (DMV_VARF_ENV | DMV_VARF_PROP);
+        ok = ok && (flags & ~(DMV_VARF_ENV | DMV_VARF_PROP)) == 0 && binding != (DMV_VARF_ENV | DMV_VARF_PROP);
+        ok = ok && string_valid(v, name);
+        ok = ok && ((binding != 0) ? string_valid(v, env) : env == DMV_NONE);
         if (!ok)
             return fail(v, DMV_ERR_TABLE, at);
         v->var_types[i] = type;
@@ -440,6 +443,7 @@ static dmv_status_t check_items(validator_t *v)
             case DMV_ITEM_TIMER:  ok = arg == 0 && value > 0 && is_boundary(v, label); break;
             case DMV_ITEM_KEY:    ok = arg == 0 && value < 32 && is_boundary(v, label); break;
             case DMV_ITEM_NAVKEY: ok = arg < DMV_NAV_COUNT && value < 32 && label == DMV_NONE; break;
+            case DMV_ITEM_CHANGE: ok = arg == 0 && value < v->h.vars.count && is_boundary(v, label); break;
             default:              ok = false; break;
         }
         if (!ok)

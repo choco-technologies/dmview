@@ -144,6 +144,8 @@ void view_set_int(struct libdmview* v, uint32_t index, int32_t value)
         view_invalidate_deps(v, index / 32U, 1U << (index % 32U));
     if ((v->vars[index].flags & DMV_VARF_ENV) != 0)
         env_write_int(v, index);
+    else if ((v->vars[index].flags & DMV_VARF_PROP) != 0)
+        claims_publish(v, index);
 }
 
 void view_set_string(struct libdmview* v, uint32_t index, const char* value)
@@ -160,6 +162,8 @@ void view_set_string(struct libdmview* v, uint32_t index, const char* value)
         view_invalidate_deps(v, index / 32U, 1U << (index % 32U));
     if ((v->vars[index].flags & DMV_VARF_ENV) != 0)
         (void)Dmod_SetEnv(view_string(v, v->vars[index].env), dst, 1);
+    else if ((v->vars[index].flags & DMV_VARF_PROP) != 0)
+        claims_publish(v, index);
 }
 
 /* The string after what the variable holds - as much of it as its size takes */
@@ -184,6 +188,8 @@ void view_append_string(struct libdmview* v, uint32_t index, const char* tail)
         view_invalidate_deps(v, index / 32U, 1U << (index % 32U));
     if ((v->vars[index].flags & DMV_VARF_ENV) != 0)
         (void)Dmod_SetEnv(view_string(v, v->vars[index].env), dst, 1);
+    else if ((v->vars[index].flags & DMV_VARF_PROP) != 0)
+        claims_publish(v, index);
 }
 
 /* ---- Loading ---- */

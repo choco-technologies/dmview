@@ -293,6 +293,9 @@ variable - `RECT 0, 0, $width, 8, #3D85F5` takes its width from `$width`.
 | `.entry label` | Start of the draw pass (required, once) |
 | `.var $name, int, init [, env:NAME]` | 32-bit signed integer variable |
 | `.var $name, str[N], "init" [, env:NAME]` | String variable holding up to N bytes |
+| `.prop $name, int, init, "name"` | Integer **property**: a variable the application that claimed the display reads and sets by `name` - see [The channel of a claim](#the-channel-of-a-claim) (version 0.6) |
+| `.prop $name, str[N], "init", "name"` | String property |
+| `.change $var, label` | Handler run when the application changed the property `$var` (version 0.6) |
 | `.font name, "spec"` | Font used by `TEXT`; `spec` is resolved by `libdmview` (e.g. `"sans-16"`) - see [Fonts](#fonts) |
 | `.gradient name, LINEAR [, angle], stop, stop [, ...]` | Linear gradient - see [Gradients](#gradients) |
 | `.gradient name, RADIAL [, cx, cy, rx, ry], stop, stop [, ...]` | Radial gradient - see [Gradients](#gradients) |
@@ -535,6 +538,7 @@ each other; one box has at most one handler per event.
 | 0x84 | `SCROLLTO` | `@id, x, y` | Set the scroll offset of a scroll box (clamped to its content) |
 | 0x85 | `RELOAD` | `str` | Load the image file `str` again (it changed on disk) and redraw where it is shown |
 | 0x86 | `SETFOCUS` | `@id` | Move the focus to a focusable box |
+| 0x87 | `EMIT` | `str [, n]` | Send the event `str` with the value `n` (default 0) to the application that claimed the display - see [The channel of a claim](#the-channel-of-a-claim) (version 0.6) |
 
 Opcodes 0xF0-0xFF are reserved for extensions (e.g. `dmjs` script calls).
 
@@ -613,6 +617,53 @@ like `TEXT`:
 One mask then fits every theme and every state; an A4 mask takes half a
 byte per pixel. A gradient is placed on the rectangle x/y/w/h. `IMAGE`
 draws only images with colors - a mask shows nothing there.
+
+## The channel of a claim
+
+An application shows its view on a display by claiming it
+(`libdmview_claim()`); the claim is also the channel between the two:
+
+- **Properties** - `.prop` variables - are the view's side of a contract:
+  the application sets and reads them by their names
+  (`libdmview_prop_set_int()`, `_set_string()`, `_get_int()`,
+  `_get_string()`), and the view uses them like any variable. The names are
+  the view's own: two views with a property `"title"` never meet. They are
+  read from the view file when it is claimed, so a name or a type the view
+  does not have is an error at once (`-ENOENT`, `-EINVAL`).
+- A change the application makes runs the view's **`.change`** handlers of
+  that property (after the variable has the new value) and redraws what
+  reads it. A change the view makes itself (`SET`, ...) is what the
+  application reads next, without a handler.
+- **Events** - `EMIT "name", n` - go into the claim's queue in order; the
+  application takes them with `libdmview_wait_event()`. 16 are kept; when
+  the application is slower, the oldest go and the next event it takes
+  tells how many (`dropped`).
+
+The service applies what the application set on its own thread, the only one
+that touches the view - when it updates the view, within 100 ms. Properties
+set before the view is shown are taken in when it is.
+
+```
+.prop   $title,   str[48], "-", "title"     ; the application sets it
+.prop   $playing, int, 0, "playing"
+.change $playing, show_state
+
+play_clicked:
+        EMIT    "toggle"
+        RET
+row_clicked:
+        EMIT    "select", $row
+        RET
+```
+
+```c
+uint32_t claim;
+libdmview_claim(NULL, "/app/player.dmv", &claim);
+libdmview_prop_set_string(claim, "title", "Midnight Drive");
+libdmview_event_t ev;
+if (libdmview_wait_event(claim, &ev, 1000) == 0 && strcmp(ev.name, "select") == 0)
+    play(ev.value);
+```
 
 ## dmenv change listener
 

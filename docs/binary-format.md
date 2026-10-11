@@ -1,7 +1,8 @@
 # dmview Binary Format (`.dmv`)
 
-Status: **version 0.5** - follows the [assembly draft](assembly.md). Version
-0.2 added gradients, 0.3 the `OPACITY` instruction, 0.4 `ICON`, 0.5 `APPEND`.
+Status: **version 0.6** - follows the [assembly draft](assembly.md). Version
+0.2 added gradients, 0.3 the `OPACITY` instruction, 0.4 `ICON`, 0.5 `APPEND`, 0.6
+the channel of a claim (`.prop`, `.change`, `EMIT`).
 
 A `.dmv` file is what `libtodmv` produces from `.dmvs` assembly and what
 `libdmview` executes. Everything is **little-endian**; every table starts at a
@@ -34,7 +35,7 @@ reader finds them only through the header, never by position.
 |--------|------|-------|---------|
 | 0 | 4 | magic | `'D' 'M' 'V' 0` |
 | 4 | 2 | version_major | 0 - a reader rejects any other |
-| 6 | 2 | version_minor | 4 - a reader accepts this or lower |
+| 6 | 2 | version_minor | 6 - a reader accepts this or lower (a writer puts the oldest version its view needs) |
 | 8 | 4 | file_size | Size of the whole file |
 | 12 | 2 | width | `.size` width, 0 = not given |
 | 14 | 2 | height | `.size` height, 0 = not given |
@@ -100,10 +101,10 @@ variables, fonts, boxes, labels and dmenv bindings.
 | Offset | Size | Field | Meaning |
 |--------|------|-------|---------|
 | 0 | 1 | type | 0 = integer, 1 = string |
-| 1 | 1 | flags | bit 0: bound to dmenv (`env:`) |
+| 1 | 1 | flags | bit 0: bound to dmenv (`env:`); bit 1: a property (`.prop`, version 0.6) - not both |
 | 2 | 2 | capacity | Bytes of a string variable, 0 for an integer |
 | 4 | 2 | name | String index of the name, without `$` |
-| 6 | 2 | env | String index of the dmenv name, 0xFFFF without binding |
+| 6 | 2 | env | String index of the dmenv name (bit 0) or of the property's name (bit 1), 0xFFFF without either |
 | 8 | 4 | init | Initial integer, or string index of the initial string |
 
 **Font** (4 bytes): name (string index), spec (string index, e.g. `sans-16`).
@@ -117,10 +118,10 @@ variables, fonts, boxes, labels and dmenv bindings.
 
 | Offset | Size | Field | Meaning |
 |--------|------|-------|---------|
-| 0 | 1 | kind | 0 `.init`, 1 `.timer`, 2 `.key`, 3 `.navkeys` |
+| 0 | 1 | kind | 0 `.init`, 1 `.timer`, 2 `.key`, 3 `.navkeys`, 4 `.change` (version 0.6) |
 | 1 | 1 | arg | `.navkeys`: role (`NEXT` = 0 ... `OK` = 6) |
 | 2 | 2 | label | Handler code word offset, 0xFFFF for `.navkeys` |
-| 4 | 4 | value | `.timer`: milliseconds, `.key` / `.navkeys`: button index |
+| 4 | 4 | value | `.timer`: milliseconds, `.key` / `.navkeys`: button index, `.change`: variable index |
 
 **Gradient** (16 bytes)
 

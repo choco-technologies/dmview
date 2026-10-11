@@ -86,10 +86,20 @@ libdmview_release(claim);
 ```
 
 The service draws the view and handles its input; the application talks to
-it through the view's `SIGNAL` (a dmhaman handler it registered) and `env:`
-variables. Claims stack: the newest one is shown, a release - or the
-application ending without one, noticed through its pid - returns the
-display to the previous claim and finally to the service's own view.
+it through the claim: the view's properties (`.prop`), which the application
+sets and reads by name - a change runs the view's `.change` handlers - and
+the events the view emits (`EMIT`), which it takes in order:
+
+```c
+libdmview_prop_set_string(claim, "title", "Midnight Drive");
+libdmview_event_t ev;
+libdmview_wait_event(claim, &ev, 1000);          /* { "select", 3 } */
+```
+
+See [docs/assembly.md](docs/assembly.md#the-channel-of-a-claim). Claims
+stack: the newest one is shown, a release - or the application ending
+without one, noticed through its pid - returns the display to the previous
+claim and finally to the service's own view.
 
 ## libdmview
 

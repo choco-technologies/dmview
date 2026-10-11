@@ -904,6 +904,98 @@ DMOD_TEST_STEP(libdmview_claims_stack_per_display)
     DMOD_TEST_EXPECT_EQ(libdmview_claim(NULL, "/a.dmv", &a), -ENODEV);
 }
 
+/* ---- The channel of a claim ---- */
+
+static void click(int x, int y, uint32_t now)
+{
+    touch(1, x, y, now);
+    touch(0, x, y, now + 10);
+}
+
+DMOD_TEST_STEP(libdmview_claims_are_channels)
+{
+    char text[32];
+    int32_t n = 0;
+    uint32_t claim = 0;
+    libdmview_event_t ev;
+
+    libdmview_display_t display = libdmview_display_register("chan");
+    DMOD_TEST_EXPECT_NOT_NULL(display);
+    DMOD_TEST_EXPECT_EQ(libdmview_claim("chan", FIXTURE("channel.dmv"), &claim), 0);
+
+    /* The contract is the view's: read from the file when it is claimed */
+    DMOD_TEST_EXPECT_EQ(libdmview_prop_get_string(claim, "title", text, sizeof(text)), 0);
+    DMOD_TEST_EXPECT_EQ(strcmp(text, "start"), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_prop_get_int(claim, "count", &n), 0);
+    DMOD_TEST_EXPECT_EQ(n, 5);
+    DMOD_TEST_EXPECT_EQ(libdmview_prop_set_int(claim, "nope", 1), -ENOENT);
+    DMOD_TEST_EXPECT_EQ(libdmview_prop_set_string(claim, "count", "x"), -EINVAL);
+    DMOD_TEST_EXPECT_EQ(libdmview_prop_get_int(claim, "title", &n), -EINVAL);
+    DMOD_TEST_EXPECT_EQ(libdmview_prop_get_int(claim, "changes", &n), -ENOENT);      /* A .var is not a property */
+    DMOD_TEST_EXPECT_EQ(libdmview_prop_get_string(claim, "title", text, 3), -ERANGE);
+    DMOD_TEST_EXPECT_EQ(strcmp(text, "st"), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_prop_set_int(claim + 1000u, "count", 1), -ENOENT);
+
+    /* Set before the view is shown: taken in when it is, with its .change handler */
+    DMOD_TEST_EXPECT_EQ(libdmview_prop_set_string(claim, "title", "a much longer title than 16"), 0);
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("channel.dmv")));
+    DMOD_TEST_EXPECT_EQ(libdmview_attach(g_view, display), 0);
+    libdmview_update(g_view, 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "changes", &n), 0);
+    DMOD_TEST_EXPECT_EQ(n, 1);
+    DMOD_TEST_EXPECT_EQ(libdmview_prop_get_string(claim, "title", text, sizeof(text)), 0);
+    DMOD_TEST_EXPECT_EQ(strcmp(text, "a much longer ti"), 0);                       /* Cut to str[16] */
+    DMOD_TEST_EXPECT_EQ(libdmview_wait_event(claim, &ev, 0), -ETIMEDOUT);
+
+    /* A change runs the handler once; an update without one runs nothing */
+    DMOD_TEST_EXPECT_EQ(libdmview_prop_set_int(claim, "count", 9), 0);
+    libdmview_update(g_view, 10);
+    libdmview_update(g_view, 20);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "count", &n), 0);
+    DMOD_TEST_EXPECT_EQ(n, 9);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "changes", &n), 0);
+    DMOD_TEST_EXPECT_EQ(n, 2);
+    DMOD_TEST_EXPECT_EQ(libdmview_wait_event(claim, &ev, 0), 0);
+    DMOD_TEST_EXPECT_EQ(strcmp(ev.name, "count_seen"), 0);
+    DMOD_TEST_EXPECT_EQ(ev.value, 9);
+
+    /* The view's own changes reach the application - not as a change (no handler) */
+    libdmview_rect_t r;
+    libdmview_render(g_view, &g_s32, &r);
+    click(10, 10, 100);
+    DMOD_TEST_EXPECT_EQ(libdmview_prop_get_int(claim, "count", &n), 0);
+    DMOD_TEST_EXPECT_EQ(n, 42);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "changes", &n), 0);
+    DMOD_TEST_EXPECT_EQ(n, 2);
+    DMOD_TEST_EXPECT_EQ(libdmview_wait_event(claim, &ev, 10), 0);
+    DMOD_TEST_EXPECT_EQ(strcmp(ev.name, "clicked"), 0);
+    DMOD_TEST_EXPECT_EQ(ev.value, 1);
+    DMOD_TEST_EXPECT_EQ(libdmview_wait_event(claim, &ev, 10), 0);
+    DMOD_TEST_EXPECT_EQ(strcmp(ev.name, "plain"), 0);
+    DMOD_TEST_EXPECT_EQ(ev.value, 0);
+    DMOD_TEST_EXPECT_EQ(ev.dropped, 0u);
+
+    /* Too many events: the oldest go, the next one says how many */
+    for (uint32_t i = 0; i < 10; i++)
+        click(10, 10, 200 + i * 100);                       /* 20 events, 16 kept */
+    DMOD_TEST_EXPECT_EQ(libdmview_wait_event(claim, &ev, 0), 0);
+    DMOD_TEST_EXPECT_EQ(ev.dropped, 4u);
+    DMOD_TEST_EXPECT_EQ(strcmp(ev.name, "clicked"), 0);
+    DMOD_TEST_EXPECT_EQ(ev.value, 4);                       /* The 4th click (one before the loop) */
+    uint32_t left = 0;
+    while (libdmview_wait_event(claim, &ev, 0) == 0)
+        left++;
+    DMOD_TEST_EXPECT_EQ(left, 15u);
+
+    /* Released: the channel is gone, the view sends nowhere */
+    DMOD_TEST_EXPECT_EQ(libdmview_release(claim), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_prop_set_int(claim, "count", 1), -ENOENT);
+    DMOD_TEST_EXPECT_EQ(libdmview_wait_event(claim, &ev, 0), -ENOENT);
+    click(10, 10, 2000);
+    DMOD_TEST_EXPECT_EQ(libdmview_attach(g_view, display), -ENOENT);                /* No claim on the display */
+    libdmview_display_unregister(display);
+}
+
 /* ---- Images ---- */
 
 /* A .dmvi file (docs/image-format.md): `rows` rows of `row` bytes of

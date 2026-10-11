@@ -25,7 +25,7 @@
 
 /** Format version this header describes. */
 #define DMV_VERSION_MAJOR        0
-#define DMV_VERSION_MINOR        5
+#define DMV_VERSION_MINOR        6
 
 /** Header size: version 0.2 added the gradient tables at its end (0.3:
  * OPACITY, 0.4: ICON, 0.5: APPEND - no change to the header). */
@@ -119,6 +119,7 @@ typedef enum
     DMV_OP_SCROLLTO  = 0x84,
     DMV_OP_RELOAD    = 0x85,
     DMV_OP_SETFOCUS  = 0x86,
+    DMV_OP_EMIT      = 0x87,     /**< Version 0.6 */
 } dmv_opcode_t;
 
 /** Instruction categories. */
@@ -279,6 +280,7 @@ typedef enum
 
 /** Variable flags. */
 #define DMV_VARF_ENV             0x01u   /**< Bound to the dmenv variable `env` */
+#define DMV_VARF_PROP            0x02u   /**< A property of the view (.prop) - `env` is its name - version 0.6 */
 
 /** View-level items (directives with a handler). */
 typedef enum
@@ -287,6 +289,7 @@ typedef enum
     DMV_ITEM_TIMER,      /**< .timer value=ms, label */
     DMV_ITEM_KEY,        /**< .key value=button, label */
     DMV_ITEM_NAVKEY,     /**< .navkeys arg=role, value=button, no label */
+    DMV_ITEM_CHANGE,     /**< .change value=variable index, label - version 0.6 */
 
     DMV_ITEM_COUNT
 } dmv_item_kind_t;
@@ -345,7 +348,7 @@ typedef struct
     uint8_t  flags;         /**< DMV_VARF_* */
     uint16_t capacity;      /**< Bytes of a string variable, 0 for an integer */
     uint16_t name;          /**< String index of the name (without '$') */
-    uint16_t env;           /**< String index of the dmenv name, or DMV_NONE */
+    uint16_t env;           /**< String index of the dmenv name (DMV_VARF_ENV) or of the property name (DMV_VARF_PROP), or DMV_NONE */
     int32_t  init;          /**< Initial integer, or string index of the initial string */
 } dmv_var_t;
 
@@ -396,7 +399,7 @@ typedef struct
     uint8_t  kind;          /**< dmv_item_kind_t */
     uint8_t  arg;           /**< DMV_ITEM_NAVKEY: dmv_nav_role_t */
     uint16_t label;         /**< Handler code word offset, or DMV_NONE */
-    uint32_t value;         /**< TIMER: ms, KEY / NAVKEY: button index */
+    uint32_t value;         /**< TIMER: ms, KEY / NAVKEY: button index, CHANGE: variable index */
 } dmv_item_t;
 
 /** Symbol record (labels, for disassembly and debugging). */
@@ -566,7 +569,7 @@ typedef struct
 #define F_SCR   DMV_FLAGS_SCROLL
 #define F_ALIGN DMV_FLAGS_ALIGN
 
-#define DMV_OPCODE_TABLE_SIZE   (DMV_OP_SETFOCUS + 1)
+#define DMV_OPCODE_TABLE_SIZE   (DMV_OP_EMIT + 1)
 
 static const dmv_opcode_info_t dmv_opcode_table[DMV_OPCODE_TABLE_SIZE] = {
     OP(DMV_OP_NOP,      "NOP",      FLOW,   0, 0, F_NONE,  false, 0),
@@ -619,6 +622,7 @@ static const dmv_opcode_info_t dmv_opcode_table[DMV_OPCODE_TABLE_SIZE] = {
     OP(DMV_OP_SCROLLTO, "SCROLLTO", ACTION, 3, 0, F_NONE,  false, BOX, V16, V16),
     OP(DMV_OP_RELOAD,   "RELOAD",   ACTION, 1, 0, F_NONE,  false, STR),
     OP(DMV_OP_SETFOCUS, "SETFOCUS", ACTION, 1, 0, F_NONE,  false, BOX),
+    OP(DMV_OP_EMIT,     "EMIT",     ACTION, 2, 1, F_NONE,  false, STR, V32),
 };
 
 #undef V16

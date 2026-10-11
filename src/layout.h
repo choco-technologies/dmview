@@ -56,6 +56,7 @@ static inline uint8_t layout_offset(uint8_t op, unsigned i)
         case DMV_OP_RELOAD:
         case DMV_OP_SETFOCUS: { static const uint8_t o[] = { 4 };                        return o[i]; }
         case DMV_OP_SCROLLTO: { static const uint8_t o[] = { 4, 6, 8 };                  return o[i]; }
+        case DMV_OP_EMIT:     { static const uint8_t o[] = { 4, 8 };                     return o[i]; }
         default:              return 0;
     }
 }

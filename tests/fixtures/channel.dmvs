@@ -1,0 +1,34 @@
+; The channel of a claim: properties, their .change handlers, EMIT
+.view   channel
+.entry  draw
+
+.prop   $title,   str[16], "start", "title"
+.prop   $count,   int, 5, "count"
+.var    $changes, int, 0
+.var    $clicks,  int, 0
+
+.change $title, on_title
+.change $count, on_count
+
+draw:
+        BOX     @all, 0, 0, 64, 48, OPAQUE
+        ON      CLICK, clicked
+        FILL    #000000
+        END
+        RET
+
+on_title:
+        ADD     $changes, 1
+        RET
+
+on_count:
+        ADD     $changes, 1
+        EMIT    "count_seen", $count
+        RET
+
+clicked:
+        ADD     $clicks, 1
+        SET     $count, 42
+        EMIT    "clicked", $clicks
+        EMIT    "plain"
+        RET

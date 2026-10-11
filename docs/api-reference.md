@@ -47,3 +47,17 @@ view sees is its time 0 (`$time`, `.timer`).
 A claim remembers the pid of the calling process - never a callback or a
 pointer into it - so a process that ends without releasing leaves nothing
 behind.
+
+## The channel of a claim
+
+The view's properties (`.prop`) and events (`EMIT`) - see
+[assembly.md](assembly.md#the-channel-of-a-claim).
+
+| Function | Description |
+|----------|-------------|
+| `int libdmview_prop_set_int(uint32_t claim, const char* name, int32_t value)` | Set an integer property; the view takes it in (and runs its `.change` handlers) on the service's thread. `-ENOENT`: no such claim or property, `-EINVAL`: not an integer |
+| `int libdmview_prop_set_string(claim, name, const char* value)` | Set a string property, cut to its size |
+| `int libdmview_prop_get_int(claim, name, int32_t* value)` | As the view or the application last set it |
+| `int libdmview_prop_get_string(claim, name, char* value, size_t size)` | `-ERANGE`: cut to `size` |
+| `int libdmview_wait_event(claim, libdmview_event_t* event, int32_t timeout_ms)` | The next event (`name`, `value`, `dropped` before it); 0: no wait, -1: no limit. `-ETIMEDOUT`, `-ENOENT` (released meanwhile) |
+| `int libdmview_attach(libdmview_t view, libdmview_display_t display)` | For the service: connect the view it shows to the display's newest claim; `-ENOENT` without a claim |

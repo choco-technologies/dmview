@@ -31,6 +31,20 @@ typedef struct
     uint16_t    h;
 } libdmview_rect_t;
 
+/** Longest name of an event (EMIT) with its terminating zero. */
+#define LIBDMVIEW_EVENT_NAME_MAX    32u
+
+/** Events of a claim kept until the application takes them (the oldest are dropped). */
+#define LIBDMVIEW_EVENT_QUEUE       16u
+
+/** An event the view of a claim emitted (EMIT name, value). */
+typedef struct
+{
+    char        name[LIBDMVIEW_EVENT_NAME_MAX];
+    int32_t     value;
+    uint32_t    dropped;    /**< Events dropped before this one - the application was too slow */
+} libdmview_event_t;
+
 /** libdmview_update() result when nothing is pending. */
 #define LIBDMVIEW_NO_DEADLINE   0xFFFFFFFFu
 
