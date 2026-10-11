@@ -19,23 +19,31 @@
 #define DEFAULT_VIEW    "/eviews/dmview_demo/dmodos.dmv"    /* dmod-boot: views of the flash modules */
 #define WAIT_MS         100u
 #define DISPLAY_WAIT_MS 10000u
+#define VIEW_WAIT_MS    30000u           /* A view on a card: until it is mounted */
 
 int main(int argc, char* argv[])
 {
     const char* view = (argc > 1 && argv[1][0] != '\0') ? argv[1] : DEFAULT_VIEW;
     const char* display = (argc > 2 && argv[2][0] != '\0') ? argv[2] : NULL;
 
-    if (!Dmod_FileAvailable(view))
-    {
-        Dmod_Printf("dmview_demo: no view %s\n", view);
-        Dmod_Printf("Usage: dmview_demo [<view>] [<display>]\n");
-        return -ENOENT;
-    }
-
     dmosi_semaphore_t wakeup = dmosi_semaphore_create(0, 1);
     if (wakeup == NULL)
         return -ENOMEM;
     libsystemd_set_stop_semaphore(wakeup);
+
+    /* Its view may be on a card mounted after it starts (automount): waited for */
+    for (uint32_t waited = 0; !Dmod_FileAvailable(view) && !libsystemd_stop_requested(); waited += WAIT_MS)
+    {
+        if (waited >= VIEW_WAIT_MS)
+        {
+            Dmod_Printf("dmview_demo: no view %s\n", view);
+            Dmod_Printf("Usage: dmview_demo [<view>] [<display>]\n");
+            libsystemd_set_stop_semaphore(NULL);
+            dmosi_semaphore_destroy(wakeup);
+            return -ENOENT;
+        }
+        (void)dmosi_semaphore_wait(wakeup, 1, (int32_t)WAIT_MS);
+    }
 
     uint32_t claim = 0;
     int ret = -ENODEV;
