@@ -392,6 +392,7 @@ static void show_view(service_t* s, char* path)
         Dmod_Free(path);
         return;
     }
+    bool was_shown = s->view != NULL;
     libdmview_close(s->view);
     s->view = NULL;
     if (s->view_path != NULL)
@@ -400,6 +401,8 @@ static void show_view(service_t* s, char* path)
     if (path == NULL)
     {
         DMOD_LOG_WARN("dmview: no view for %s (DMVIEW_VIEWS, DMVIEW_DEFAULT)\n", s->name);
+        if (!was_shown)
+            return;                     /* What the display shows - a splash screen - stays */
         dmdrvi_gfx_fill_rect_t all = { 0, 0, s->info.width, s->info.height, 0xFF000000u };
         (void)Dmod_Ioctl(s->gfx, DMDRVI_IOCTL_GFX_FILL_RECT, &all);
         present(s, NULL);
