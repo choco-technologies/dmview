@@ -509,16 +509,31 @@ dmod_libdmview_api_declaration(1.0, libdmview_t, _open_input, ( const dmv_input_
     return open_view(input, NULL, status);
 }
 
+/* A view read whole, as dmv_input_t reads it */
+typedef struct
+{
+    const uint8_t*  data;
+    uint32_t        size;
+} memory_t;
+
 /* static: its address is handed out as a callback - a global function's
  * address would be taken through the GOT, which the dmod loader does not
  * relocate */
-static int file_read(void* ctx, uint32_t offset, void* buffer, size_t size)
+static int memory_read(void* ctx, uint32_t offset, void* buffer, size_t size)
 {
-    if (Dmod_FileSeek(ctx, (Dmod_FileOffset_t)offset, DMOD_SEEK_SET) != 0)
+    const memory_t* m = ctx;
+    if (offset > m->size || size > m->size - offset)
         return -EIO;
-    return (Dmod_FileRead(buffer, 1, size, ctx) == size) ? 0 : -EIO;
+    memcpy(buffer, m->data + offset, size);
+    return 0;
 }
 
+/*
+ * The file is read whole and closed before the view is made of it: making
+ * it loads its fonts and images - seconds at a board's start -, and a file
+ * open that long cannot be written meanwhile (FatFs locks it: a new view
+ * sent to the card while the old one is being shown failed).
+ */
 dmod_libdmview_api_declaration(1.0, libdmview_t, _open, ( const char* path, int* status ))
 {
     size_t size = 0;
@@ -537,9 +552,21 @@ dmod_libdmview_api_declaration(1.0, libdmview_t, _open, ( const char* path, int*
             *status = -ENOENT;
         return NULL;
     }
+    uint8_t* data = Dmod_Malloc(size + 1U);     /* +1: never a zero-size allocation */
+    bool read = data != NULL && Dmod_FileRead(data, 1, size, file) == size;
+    Dmod_FileClose(file);
+    if (!read)
+    {
+        if (data != NULL)
+            Dmod_Free(data);
+        if (status != NULL)
+            *status = (data == NULL) ? -ENOMEM : -EIO;
+        return NULL;
+    }
+    memory_t m = { data, (uint32_t)size };
     dmv_input_t input;
-    input.read = file_read;
-    input.ctx = file;
+    input.read = memory_read;
+    input.ctx = &m;
     input.size = (uint32_t)size;
 
     /* Relative image and font paths start in the view's directory */
@@ -551,7 +578,7 @@ dmod_libdmview_api_declaration(1.0, libdmview_t, _open, ( const char* path, int*
         dir[slash - path] = '\0';
     }
     libdmview_t v = open_view(&input, dir, status);
-    Dmod_FileClose(file);
+    Dmod_Free(data);
     return v;
 }
 
