@@ -30,7 +30,24 @@ static inline void record(struct libdmview* v, uint32_t word, uint32_t bit)
         return;
     int32_t box = v->frames[v->depth].box;
     uint32_t row = (box == ROOT) ? v->box_count : (uint32_t)box;
-    v->deps[row * v->dep_words + word] |= bit;
+    uint32_t* deps = &v->deps[row * v->dep_words + word];
+    if ((*deps & bit) == 0)
+    {
+        *deps |= bit;
+        v->dep_counts[word * 32U + (uint32_t)__builtin_ctz(bit)]++;
+    }
+}
+
+/* A row's bits gone: they are not counted any more */
+static void clear_deps(struct libdmview* v, uint32_t row)
+{
+    uint32_t* deps = v->deps + row * v->dep_words;
+    for (uint32_t w = 0; w < v->dep_words; w++)
+    {
+        for (uint32_t bits = deps[w]; bits != 0; bits &= bits - 1U)
+            v->dep_counts[w * 32U + (uint32_t)__builtin_ctz(bits)]--;
+        deps[w] = 0;
+    }
 }
 
 static inline void record_builtin(struct libdmview* v, uint32_t bit)
@@ -259,7 +276,7 @@ static void enter_box(struct libdmview* v, const uint8_t* insn)
     b->parent_oy = parent->oy;
     b->parent_clip = parent->view_clip;
     b->flags = (uint8_t)((b->flags | BOXF_VISIBLE) & ~BOXF_DIRTY);
-    memset(v->deps + index * v->dep_words, 0, v->dep_words * sizeof(uint32_t));
+    clear_deps(v, (uint32_t)index);
 
     frame_t* f = &v->frames[++v->depth];
     f->ox = x;
@@ -729,6 +746,7 @@ static void redraw(struct libdmview* v, int32_t target, const rect_t* area)
         for (uint32_t i = 0; i < v->box_count; i++)
             v->boxes[i].flags &= (uint8_t)~(BOXF_VISIBLE | BOXF_DIRTY);
         memset(v->deps, 0, (v->box_count + 1U) * v->dep_words * sizeof(uint32_t));
+        memset(v->dep_counts, 0, v->dep_words * 32U * sizeof(uint16_t));
         v->depth = 0;
         f->ox = 0;
         f->oy = 0;
