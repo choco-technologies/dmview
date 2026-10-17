@@ -133,6 +133,14 @@ scroll offset, which `libdmview` keeps per box:
   `CLICK`. `WHEEL` over the box scrolls it as well.
 - `SCROLLTO @id, x, y` sets the offset from a handler (clamped to the
   content), `$box.sx` / `$box.sy` read it.
+- `ON SCROLLED, label` of the scroll box runs once its offset changed - by a
+  drag, `SCROLLTO`, the focus -, after what changed it (at the end of
+  `libdmview_input()` / `libdmview_update()`), with `$box.sy` / `$box.sx`
+  where it is now. A `SCROLLTO` of the box during a drag moves the content
+  under the finger: the drag goes on from there. Together they make a list
+  longer than its rows - the handler tells the application it reached an
+  end (`EMIT`), the application puts the next items into the rows and the
+  view scrolls them back by as much.
 - **Why an instruction**: `libdmview` knows the box is a viewport, so scrolling
   needs no full redraw - it moves the pixels already on the screen and draws
   only the strip that became visible, and skips children whose bounds (from

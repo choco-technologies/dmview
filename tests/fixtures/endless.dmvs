@@ -1,0 +1,29 @@
+; A list that loads more where it ends: 40 px of it seen of 120. Its
+; SCROLLED handler sees the offset ($box.sy); at the end (80) it moves the
+; list back by 40, as an application that put the next rows into it would.
+.view   endless
+.entry  draw
+
+.var    $events, int, 0
+.var    $shifts, int, 0
+.var    $at, int, 0
+
+draw:
+        FILL    #000000
+        BOX     @list, 0, 0, 32, 40
+        SCROLL  32, 120, VERTICAL
+        ON      SCROLLED, scrolled
+        BOX     @row, 0, 0, 32, 120
+        FILL    #FF0000
+        END
+        END
+        RET
+
+scrolled:
+        ADD     $events, 1
+        SET     $at, $box.sy
+        JLT     $at, 80, .done
+        SCROLLTO @list, 0, 40
+        ADD     $shifts, 1
+.done:
+        RET

@@ -222,6 +222,11 @@ static void scroll_to(struct libdmview* v, uint16_t box, int32_t x, int32_t y)
     b->sy = y;
     view_mark_dirty(v, (int32_t)box);
     view_invalidate_deps(v, v->dep_words - 1U, DEP_SCROLL);
+    if (b->handlers[DMV_EVENT_SCROLLED] != DMV_NONE)
+    {
+        b->scrolled = true;             /* (run after what moved it: not inside a handler) */
+        v->any_scrolled = true;
+    }
 }
 
 void view_scroll_to(struct libdmview* v, uint16_t box, int32_t x, int32_t y)
@@ -589,8 +594,17 @@ static void run(struct libdmview* v, uint32_t pc, bool box_region)
                 break;
             case DMV_OP_SCROLLTO:
                 if (!v->drawing)
-                    scroll_to(v, rd16(insn + OPOFF(SCROLLTO, 0)), v16(v, insn, 1, OPOFF(SCROLLTO, 1)),
-                              v16(v, insn, 2, OPOFF(SCROLLTO, 2)));
+                {
+                    uint16_t index = rd16(insn + OPOFF(SCROLLTO, 0));
+                    scroll_to(v, index, v16(v, insn, 1, OPOFF(SCROLLTO, 1)), v16(v, insn, 2, OPOFF(SCROLLTO, 2)));
+                    if ((int32_t)index == v->scrolling)
+                    {
+                        /* Dragged meanwhile: the drag goes on from where the handler put it - the
+                         * content under the finger as it is now */
+                        v->scroll_sx = v->boxes[index].sx + (v->last_x - v->start_x);
+                        v->scroll_sy = v->boxes[index].sy + (v->last_y - v->start_y);
+                    }
+                }
                 break;
             case DMV_OP_RELOAD:
                 if (!v->drawing)
