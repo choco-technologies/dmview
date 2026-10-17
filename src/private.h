@@ -203,6 +203,7 @@ typedef struct
     int32_t     sx, sy;             /* Scroll offset */
     int32_t     cw, ch;             /* Scrolled content size */
     uint16_t    handlers[DMV_EVENT_COUNT];  /* Label word offsets, DMV_NONE */
+    bool        scrolled;           /* Its offset changed: SCROLLED due (view_fire_scrolled()) */
     uint8_t     seen;               /* Its opacity times the boxes' around it, as last drawn: 0 - not seen, takes no contact */
 } rbox_t;
 
@@ -261,6 +262,7 @@ struct libdmview
     /* Drawing */
     bool            full;           /* Everything has to be drawn */
     bool            any_dirty;
+    bool            any_scrolled;       /* A box's SCROLLED due */
     int32_t         occluder;       /* A redraw of the root: the box that hides what is drawn before it, -1 */
     rect_t          occluder_clip;  /* The root's clip from that box on */
     const libdmview_surface_t* surface;
@@ -366,5 +368,6 @@ void        draw_text(const libdmview_surface_t* s, const rect_t* clip, int32_t 
 
 /* exec.c: a scroll box's offset (clamped to its content) */
 void    view_scroll_to(struct libdmview* v, uint16_t box, int32_t x, int32_t y);
+void    view_fire_scrolled(struct libdmview* v);
 
 #endif /* LIBDMVIEW_PRIVATE_H */

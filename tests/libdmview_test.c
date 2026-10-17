@@ -806,6 +806,43 @@ DMOD_TEST_STEP(libdmview_drags_scroll_boxes)
     DMOD_TEST_EXPECT_EQ(px(10, 10), 0xFF00FF00u);
 }
 
+/* A scroll box's SCROLLED: after a drag moved it, with its offset; a SCROLLTO of its handler during the drag */
+DMOD_TEST_STEP(libdmview_tells_where_a_box_is_scrolled)
+{
+    int32_t value = 0;
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("endless.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "events", &value), 0);
+    DMOD_TEST_EXPECT_EQ(value, 0);
+
+    /* Dragged up by 30: scrolled to 30 */
+    touch(1, 10, 38, 10);
+    touch(1, 10, 8, 20);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "events", &value), 0);
+    DMOD_TEST_EXPECT_EQ(value, 1);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "at", &value), 0);
+    DMOD_TEST_EXPECT_EQ(value, 30);
+    touch(0, 0, 0, 30);
+
+    /* Again by 30 and 30: at its end (80) the handler moves it back to 40 - the drag goes on from there */
+    touch(1, 10, 38, 40);
+    touch(1, 10, 8, 50);                        /* 60 */
+    touch(1, 10, 0, 60);                        /* 68 */
+    touch(0, 0, 0, 70);
+    touch(1, 10, 38, 80);
+    touch(1, 10, 20, 90);                       /* 86: the end, back to 40 */
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "shifts", &value), 0);
+    DMOD_TEST_EXPECT_EQ(value, 1);
+    touch(1, 10, 10, 100);                      /* 10 more: 50, not the end again */
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "at", &value), 0);
+    DMOD_TEST_EXPECT_EQ(value, 50);
+    DMOD_TEST_EXPECT_EQ(libdmview_get_int(g_view, "shifts", &value), 0);
+    DMOD_TEST_EXPECT_EQ(value, 1);
+    touch(0, 0, 0, 110);
+}
+
 DMOD_TEST_STEP(libdmview_env_variables_and_goto)
 {
     int32_t value = 0;

@@ -223,7 +223,32 @@ dmod_libdmview_api_declaration(1.0, int, _input, ( libdmview_t view, const dmdrv
             memset(v->ev, 0, sizeof(v->ev));
         }
     }
+    view_fire_scrolled(v);
     return 0;
+}
+
+/*
+ * SCROLLED of the boxes whose offset changed - by a drag, SCROLLTO, ... -,
+ * after what changed it. A handler that scrolls a box again (a list that
+ * loads more where it ends, moving what is shown back) gets it once more,
+ * a few rounds at most.
+ */
+void view_fire_scrolled(struct libdmview* v)
+{
+    for (uint32_t round = 0; v->any_scrolled && round < 4u; round++)
+    {
+        v->any_scrolled = false;
+        for (uint32_t i = 0; i < v->box_count; i++)
+        {
+            if (!v->boxes[i].scrolled)
+                continue;
+            v->boxes[i].scrolled = false;
+            fire(v, (int32_t)i, DMV_EVENT_SCROLLED, v->last_x, v->last_y, 0, 0);
+        }
+    }
+    v->any_scrolled = false;
+    for (uint32_t i = 0; i < v->box_count; i++)
+        v->boxes[i].scrolled = false;
 }
 
 dmod_libdmview_api_declaration(1.0, uint32_t, _update, ( libdmview_t view, uint32_t now_ms ))
@@ -265,5 +290,6 @@ dmod_libdmview_api_declaration(1.0, uint32_t, _update, ( libdmview_t view, uint3
         else if (v->longpress_ms - held < next)
             next = v->longpress_ms - held;
     }
+    view_fire_scrolled(v);
     return next;
 }
