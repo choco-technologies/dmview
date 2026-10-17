@@ -255,9 +255,12 @@ struct libdmview
     char**          strs;           /* Buffer of each string variable, NULL for integers */
 
     /* Dependencies: per box (and the root, last row) the variables it read
-     * while drawing - var_count bits, then one word of DEP_* bits. */
+     * while drawing - var_count bits, then one word of DEP_* bits. And per
+     * bit, the rows that have it: a change of a variable no box read (a
+     * handler's temporary) looks at no row, the others stop at the last one. */
     uint32_t        dep_words;
     uint32_t*       deps;
+    uint16_t*       dep_counts;     /* dep_words * 32 */
 
     /* Drawing */
     bool            full;           /* Everything has to be drawn */

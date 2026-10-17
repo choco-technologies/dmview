@@ -124,13 +124,18 @@ void view_mark_dirty(struct libdmview* v, int32_t box)
 
 void view_invalidate_deps(struct libdmview* v, uint32_t word, uint32_t bit)
 {
+    /* As many rows as have the bit (often none: a handler's temporary) */
+    uint32_t left = v->dep_counts[word * 32U + (uint32_t)__builtin_ctz(bit)];
     uint32_t* row = v->deps + word;
-    for (uint32_t b = 0; b < v->box_count; b++, row += v->dep_words)
+    for (uint32_t b = 0; left > 0 && b < v->box_count; b++, row += v->dep_words)
     {
         if ((*row & bit) != 0)
+        {
             view_mark_dirty(v, (int32_t)b);
+            left--;
+        }
     }
-    if ((*row & bit) != 0)          /* The root's row comes last */
+    if (left > 0)                   /* The root's row comes last */
         v->full = true;
 }
 
@@ -219,7 +224,7 @@ static void free_view(struct libdmview* v)
         }
     }
     void* blocks[] = { v->code, v->strings, v->vars, v->fonts, v->boxes, v->items, v->gradients, v->stops,
-                       v->ints, v->strs, v->deps, v->goto_path, v->goto_taken, v->dir };
+                       v->ints, v->strs, v->deps, v->dep_counts, v->goto_path, v->goto_taken, v->dir };
     for (size_t i = 0; i < sizeof(blocks) / sizeof(blocks[0]); i++)
     {
         if (blocks[i] != NULL)
@@ -434,9 +439,11 @@ static int load_tables(struct libdmview* v, const dmv_input_t* in, const uint8_t
     /* Dependencies: a row per box and one for the root */
     v->dep_words = (v->var_count + 31U) / 32U + 1U;
     size_t deps_size = (v->box_count + 1U) * v->dep_words * sizeof(uint32_t);
-    if ((v->deps = Dmod_Malloc(deps_size)) == NULL)
+    if ((v->deps = Dmod_Malloc(deps_size)) == NULL ||
+        (v->dep_counts = Dmod_Malloc(v->dep_words * 32U * sizeof(uint16_t))) == NULL)
         return -ENOMEM;
     memset(v->deps, 0, deps_size);
+    memset(v->dep_counts, 0, v->dep_words * 32U * sizeof(uint16_t));
     return (images_slots(v) == 0) ? 0 : -ENOMEM;
 }
 
