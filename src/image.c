@@ -14,15 +14,31 @@
  * showed last and its image - a string variable set to another path loads
  * the new image on the next draw and releases the old one.
  *
+ * What a view shows when it is shown is read at once, in the draw. An image
+ * a slot is given later - a string variable set to another path - is read by
+ * the loader thread instead: the draw shows nothing in its place, and once the
+ * file is there (images_poll(), in libdmview_update()) the box it is in is
+ * drawn again. A slow source - an SD card - never stops the drawing: a list
+ * whose rows change their images keeps scrolling while they are read.
+ *
  * A path starting with '/' is used as it is; any other is relative to the
  * directory of the view file.
  */
 
 #define CHUNK   64          /* Pixels converted at a time */
 #define HEADER  ((uint32_t)sizeof(dmvi_header_t))
+#define LOADER_STACK        4096u
+#define LOADER_WAIT_MS      1000
+#define LOADER_WAKE_MAX     1024u
 
 static dmosi_mutex_t    g_images_lock;
 static image_t*         g_images;
+
+/* The loader thread: reads the images that are IMAGE_LOADING */
+static dmosi_thread_t   g_loader;
+static dmosi_semaphore_t g_loader_wake;
+static volatile bool    g_loader_quit;
+static volatile uint32_t g_loaded;      /* Grows when an image is read (or failed): views look at their slots */
 
 static void free_image(image_t* im)
 {
@@ -43,6 +59,18 @@ int images_init(void)
 
 void images_deinit(void)
 {
+    if (g_loader != NULL)
+    {
+        g_loader_quit = true;
+        (void)dmosi_semaphore_post(g_loader_wake, 1);
+        (void)dmosi_thread_join(g_loader);
+        dmosi_thread_destroy(g_loader);
+        g_loader = NULL;
+    }
+    if (g_loader_wake != NULL)
+        dmosi_semaphore_destroy(g_loader_wake);
+    g_loader_wake = NULL;
+    g_loader_quit = false;
     while (g_images != NULL)
     {
         image_t* im = g_images;
@@ -218,6 +246,7 @@ static image_t* load(const char* path)
     {
         memset(im, 0, sizeof(*im));
         im->path = Dmod_StrDup(path);
+        im->state = IMAGE_READY;
         uint32_t image_size = 0;
         if (im->path == NULL || Dmod_FileRead(header, 1, HEADER, file) != HEADER ||
             !check_header(header, (uint32_t)size) || (image_size = read_image(im, header, (uint32_t)size, file)) == 0 ||
@@ -253,24 +282,150 @@ static image_t* acquire(const char* path)
     return im;
 }
 
+/* One user less (under the lock): the last one frees it */
+static void release_locked(image_t* im)
+{
+    if (--im->refs != 0)
+        return;
+    for (image_t** p = &g_images; *p != NULL; p = &(*p)->next)
+    {
+        if (*p == im)
+        {
+            *p = im->next;
+            break;
+        }
+    }
+    free_image(im);
+}
+
 static void release(image_t* im)
 {
     if (im == NULL || g_images_lock == NULL)
         return;
     dmosi_mutex_lock(g_images_lock);
-    if (--im->refs == 0)
+    release_locked(im);
+    dmosi_mutex_unlock(g_images_lock);
+}
+
+/* ---- The loader thread ---- */
+
+/* The next image to read (under the lock), held by the loader while it reads it; NULL: none */
+static image_t* next_to_load(void)
+{
+    for (image_t* im = g_images; im != NULL; im = im->next)
     {
-        for (image_t** p = &g_images; *p != NULL; p = &(*p)->next)
+        if (im->state == IMAGE_LOADING && !im->reading && im->refs > 0)
         {
-            if (*p == im)
-            {
-                *p = im->next;
-                break;
-            }
+            im->refs++;
+            im->reading = true;
+            return im;
         }
-        free_image(im);
+    }
+    return NULL;
+}
+
+static void loader_thread(void* arg)
+{
+    (void)arg;
+    while (!g_loader_quit)
+    {
+        dmosi_mutex_lock(g_images_lock);
+        image_t* im = next_to_load();
+        char* path = (im != NULL) ? Dmod_StrDup(im->path) : NULL;
+        dmosi_mutex_unlock(g_images_lock);
+        if (im == NULL)
+        {
+            (void)dmosi_semaphore_wait(g_loader_wake, 1, LOADER_WAIT_MS);
+            continue;
+        }
+        image_t* read = (path != NULL) ? load(path) : NULL;
+        if (read == NULL)
+            DMOD_LOG_WARN("libdmview: cannot show the image %s\n", im->path);
+        dmosi_mutex_lock(g_images_lock);
+        if (read != NULL)
+        {
+            /* What was read is the image's now; its shell goes */
+            im->opaque = read->opaque;
+            im->format = read->format;
+            im->width = read->width;
+            im->height = read->height;
+            im->stride = read->stride;
+            im->alpha_stride = read->alpha_stride;
+            im->data = read->data;
+            im->pixels = read->pixels;
+            im->alpha = read->alpha;
+            im->palette = read->palette;
+            read->data = NULL;
+            read->palette = NULL;
+        }
+        im->reading = false;
+        im->state = (read != NULL) ? IMAGE_READY : IMAGE_FAILED;
+        g_loaded++;
+        release_locked(im);                 /* (the loader's hold: no view wants it any more - freed) */
+        dmosi_mutex_unlock(g_images_lock);
+        if (read != NULL)
+            free_image(read);
+        if (path != NULL)
+            Dmod_Free(path);
+    }
+}
+
+/*
+ * The image of a path for a slot whose source changed: the one known, else
+ * a new one the loader reads (IMAGE_LOADING meanwhile)
+ */
+static image_t* acquire_later(const char* path)
+{
+    if (g_images_lock == NULL)
+        return NULL;
+    dmosi_mutex_lock(g_images_lock);
+    image_t* im = g_images;
+    while (im != NULL && (im->stale || strcmp(im->path, path) != 0))
+        im = im->next;
+    if (im == NULL && (im = Dmod_Malloc(sizeof(*im))) != NULL)
+    {
+        memset(im, 0, sizeof(*im));
+        im->state = IMAGE_LOADING;
+        if ((im->path = Dmod_StrDup(path)) == NULL)
+        {
+            Dmod_Free(im);
+            im = NULL;
+        }
+        else
+        {
+            im->next = g_images;
+            g_images = im;
+        }
+    }
+    if (im != NULL)
+        im->refs++;
+    bool start = im != NULL && im->state == IMAGE_LOADING && g_loader == NULL;
+    if (start && g_loader_wake == NULL)
+        g_loader_wake = dmosi_semaphore_create(0, LOADER_WAKE_MAX);
+    if (start && g_loader_wake != NULL)
+    {
+        /* Not a process's: a view service that stops does not take it with it */
+        g_loader = dmosi_thread_create(loader_thread, NULL, dmosi_thread_get_priority(NULL), LOADER_STACK,
+                                       "libdmview_images", NULL);
+        if (g_loader == NULL)
+            DMOD_LOG_ERROR("libdmview: no thread to read images\n");
     }
     dmosi_mutex_unlock(g_images_lock);
+    if (im != NULL && im->state == IMAGE_LOADING && g_loader_wake != NULL)
+        (void)dmosi_semaphore_post(g_loader_wake, 1);
+    return im;
+}
+
+/* The image a slot draws now, NULL: none (yet) */
+static const image_t* drawable(image_slot_t* sl)
+{
+    if (sl->image == NULL)
+        return NULL;
+    dmosi_mutex_lock(g_images_lock);
+    uint8_t state = sl->image->state;
+    dmosi_mutex_unlock(g_images_lock);
+    sl->waiting = state == IMAGE_LOADING;
+    return (state == IMAGE_READY) ? sl->image : NULL;
 }
 
 /* ---- Slots ---- */
@@ -309,6 +464,7 @@ int images_slots(struct libdmview* v)
         sl->source = NULL;
         sl->image = NULL;
         sl->box = ROOT;
+        sl->waiting = false;
     }
     return 0;
 }
@@ -317,6 +473,7 @@ static void clear_slot(image_slot_t* sl)
 {
     release(sl->image);
     sl->image = NULL;
+    sl->waiting = false;
     if (sl->source != NULL)
         Dmod_Free(sl->source);
     sl->source = NULL;
@@ -347,21 +504,47 @@ const image_t* images_get(struct libdmview* v, uint32_t pc, const char* source)
     image_slot_t* sl = &v->slots[(lo + hi) / 2U];
     sl->box = v->frames[v->depth].box;
     if (sl->source != NULL && strcmp(sl->source, source) == 0)
-        return sl->image;
+        return drawable(sl);
 
     /* A new path: an empty one shows nothing, one that does not load is
-     * logged once - until the path changes or RELOAD */
+     * logged once - until the path changes or RELOAD. The first one is read
+     * now, a later one by the loader thread (see the top of the file) */
+    bool first = sl->source == NULL;
     clear_slot(sl);
     if ((sl->source = Dmod_StrDup(source)) == NULL || source[0] == '\0')
         return NULL;
     char* path = resolve(v, source);
     if (path != NULL)
     {
-        if ((sl->image = acquire(path)) == NULL)
+        if (!first)
+            sl->image = acquire_later(path);
+        else if ((sl->image = acquire(path)) == NULL)
             DMOD_LOG_WARN("libdmview: cannot show the image %s\n", path);
         Dmod_Free(path);
     }
-    return sl->image;
+    return drawable(sl);
+}
+
+void images_poll(struct libdmview* v)
+{
+    uint32_t loaded = g_loaded;
+    if (loaded == v->images_seen)
+        return;
+    v->images_seen = loaded;
+    for (uint32_t i = 0; i < v->slot_count; i++)
+    {
+        image_slot_t* sl = &v->slots[i];
+        if (!sl->waiting)
+            continue;
+        dmosi_mutex_lock(g_images_lock);
+        bool done = sl->image == NULL || sl->image->state != IMAGE_LOADING;
+        dmosi_mutex_unlock(g_images_lock);
+        if (done)
+        {
+            sl->waiting = false;
+            view_mark_dirty(v, sl->box);
+        }
+    }
 }
 
 void images_reload(struct libdmview* v, const char* source)

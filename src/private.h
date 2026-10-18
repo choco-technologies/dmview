@@ -167,6 +167,8 @@ typedef struct image
     struct image*       next;
     char*               path;
     uint32_t            refs;
+    uint8_t             state;              /* IMAGE_*: what its file gave (under the images' lock) */
+    bool                reading;            /* IMAGE_LOADING: the loader thread reads it now */
     bool                stale;              /* RELOAD: no longer found, freed by its last user */
     bool                opaque;             /* Every pixel opaque: copied without blending */
     uint8_t             format;             /* dmvi_format_t */
@@ -178,6 +180,10 @@ typedef struct image
     uint32_t*           palette;            /* I8: DMVI_PALETTE_MAX colors, the missing ones transparent */
 } image_t;
 
+#define IMAGE_LOADING       0u                  /* Its file is read by the loader thread: nothing to draw yet */
+#define IMAGE_READY         1u
+#define IMAGE_FAILED        2u                  /* Not loadable: nothing to draw */
+
 /** What one IMAGE / ICON instruction of a view shows. */
 typedef struct
 {
@@ -185,6 +191,7 @@ typedef struct
     char*               source;             /* Its path operand as last drawn, NULL before */
     image_t*            image;              /* NULL: not loadable */
     int32_t             box;                /* Box it was last drawn in */
+    bool                waiting;            /* Drawn while its image was loading: redrawn when it is not */
 } image_slot_t;
 
 /** A box at run time. Geometry is what its last draw found. */
@@ -302,6 +309,7 @@ struct libdmview
     char*           dir;            /* Directory of the view file - relative image paths start there */
     uint32_t        slot_count;
     image_slot_t*   slots;          /* One per IMAGE / ICON, by pc ascending */
+    uint32_t        images_seen;    /* The loader's generation its slots were checked at (images_poll) */
 };
 
 /* validate.c */
@@ -328,6 +336,7 @@ int             images_slots(struct libdmview* v);         /* Builds v->slots fr
 void            images_free_slots(struct libdmview* v);
 const image_t*  images_get(struct libdmview* v, uint32_t pc, const char* source);   /* NULL: nothing to draw */
 void            images_reload(struct libdmview* v, const char* source);
+void            images_poll(struct libdmview* v);          /* Redraws what waited for an image the loader read */
 void            draw_image(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h,
                            const image_t* image, uint32_t alpha, uint8_t align);
 void            draw_icon(const libdmview_surface_t* s, const rect_t* clip, int32_t x, int32_t y, int32_t w, int32_t h,
