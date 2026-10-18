@@ -570,13 +570,17 @@ in the string table or a string variable:
   view (`${views_dir}` in a `.dmr`) are found by their names.
 - **Loading**: the first time a path is drawn, the file is read into memory
   and checked; a file that cannot be loaded stays empty and is logged once
-  (until the path changes or `RELOAD`). An empty path shows nothing. Loading
-  is synchronous for now: a slow source (an SD card, the network) delays
-  that one draw.
+  (until the path changes or `RELOAD`). An empty path shows nothing. What a
+  view shows when it is shown is read in that draw.
 - **Dynamic sources**: with a string variable as the source, setting the
   variable to another path loads the new image and redraws only the boxes
   that show it - from a handler, or from outside through an `env:`
-  binding. `RELOAD` reads a file again when its content changed under the
+  binding. A path no view has loaded yet is read by a thread of
+  `libdmview` instead of the draw: the box shows nothing in the image's
+  place meanwhile, and is drawn again once the file is read (at the next
+  `libdmview_update()`). A slow source - an SD card - never stops the
+  drawing: a list whose rows get other images keeps scrolling while they
+  are read. `RELOAD` reads a file again when its content changed under the
   same path (e.g. a camera snapshot) and redraws where the view shows it.
 - **Memory**: a loaded image is kept per path as long as a view shows it,
   and shared between instructions, views and displays. Images are drawn

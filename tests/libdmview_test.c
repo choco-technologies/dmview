@@ -1224,6 +1224,54 @@ DMOD_TEST_STEP(libdmview_draws_images)
     DMOD_TEST_EXPECT_TRUE(write_rgb565(0xF800));
 }
 
+/*
+ * An image a variable names that no view showed yet: read by the loader
+ * thread - the draw does not wait, the box is drawn again once it is there
+ */
+DMOD_TEST_STEP(libdmview_reads_a_new_image_in_the_background)
+{
+    uint16_t yellow[16];
+    for (int i = 0; i < 16; i++)
+        yellow[i] = 0xFFE0;
+    DMOD_TEST_EXPECT_TRUE(write_images());
+    DMOD_TEST_EXPECT_TRUE(write_image(FIXTURE("late.dmvi"), DMVI_FORMAT_RGB565, 4, 4, yellow, 8, 8, NULL, NULL, 0));
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("images.dmv")));
+    if (g_view == NULL)
+        return;
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    DMOD_TEST_EXPECT_EQ(px(16, 16), 0xFFFF0000u);               /* the variable's first image: read at once */
+
+    DMOD_TEST_EXPECT_EQ(libdmview_set_string(g_view, "photo", "late.dmvi"), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    DMOD_TEST_EXPECT_EQ(px(16, 16), 0xFF000000u);               /* being read: nothing there yet */
+
+    libdmview_rect_t changed = { 0, 0, 0, 0 };
+    int drawn = 0;
+    Dmod_Timestamp_t start = Dmod_GetUptime();
+    for (uint32_t now = 1000; drawn == 0 && Dmod_GetUptime() - start < 3000u; now += 10)
+    {
+        Dmod_ThreadSleep(10);
+        (void)libdmview_update(g_view, now);
+        drawn = libdmview_render(g_view, &g_s32, &changed);
+    }
+    DMOD_TEST_EXPECT_EQ(drawn, 1);                               /* drawn again when it was read */
+    DMOD_TEST_EXPECT_TRUE(rect_is(&changed, 16, 16, 16, 16));   /* only its box */
+    DMOD_TEST_EXPECT_EQ(px(16, 16), 0xFFFFFF00u);
+
+    /* A file that is not there: nothing, and nothing waits for it */
+    DMOD_TEST_EXPECT_EQ(libdmview_set_string(g_view, "photo", "gone.dmvi"), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, NULL), 1);
+    for (int i = 0; i < 50; i++)
+    {
+        Dmod_ThreadSleep(10);
+        (void)libdmview_update(g_view, 2000u + (uint32_t)i);
+        (void)libdmview_render(g_view, &g_s32, NULL);
+    }
+    DMOD_TEST_EXPECT_EQ(px(16, 16), 0xFF000000u);
+    libdmview_close(g_view);
+    g_view = NULL;
+}
+
 DMOD_TEST_STEP(libdmview_rejects_broken_images)
 {
     /* The pixels run past the end of the file: not shown */

@@ -261,6 +261,8 @@ dmod_libdmview_api_declaration(1.0, uint32_t, _update, ( libdmview_t view, uint3
 
     /* What the application set through the claim, and the .change handlers */
     claims_apply(v);
+    /* What waited for an image the loader thread read */
+    images_poll(v);
 
     for (uint32_t i = 0; i < v->item_count; i++)
     {
