@@ -19,7 +19,10 @@
  *  3. $DMVIEW_DEFAULT.
  *
  * Input comes from the member of the display's friends_group that is an
- * input device with contacts of the display's resolution.
+ * input device with contacts of the display's resolution. The display is
+ * often reported before its touch panel is configured (another driver_order,
+ * a driver from a card or the external flash), so without one the friends
+ * are looked through again every TOUCH_LOOK_MS until it is there.
  *
  * A view designed for a portrait screen on a landscape display (or the
  * other way round) is turned by 90 degrees: it is drawn into a buffer of
@@ -29,11 +32,13 @@
  */
 
 #define CLAIM_POLL_MS   100u     /* Longest wait - claims and stop requests are seen this fast */
+#define TOUCH_LOOK_MS   1000u    /* Without an input: the friends are looked through again this often */
 #define ROTATE_TILE     16u      /* Lines of a view turned at once - they stay in the cache */
 
 typedef struct
 {
     const char*         name;
+    const char*         path;       /* The display's node */
     void*               gfx;
     dmdrvi_gfx_info_t   info;
     libdmview_surface_t screen;     /* The display's framebuffer */
@@ -127,8 +132,10 @@ static bool open_display(service_t* s, const char* path)
     return true;
 }
 
-/* The friend of the display that is an input device of its resolution */
-static void open_touch(service_t* s, const char* display_path)
+/* The friend of the display that is an input device of its resolution.
+ * `report` logs what is not used and a missing input - once, not on every
+ * later look (see TOUCH_LOOK_MS). */
+static void open_touch(service_t* s, bool report)
 {
     for (uint32_t index = 0; ; index++)
     {
@@ -151,11 +158,11 @@ static void open_touch(service_t* s, const char* display_path)
         {
             if (info.width == s->info.width && info.height == s->info.height)
             {
-                DMOD_LOG_INFO("dmview: %s takes its input from %s\n", display_path, f.path);
+                DMOD_LOG_INFO("dmview: %s takes its input from %s\n", s->path, f.path);
                 s->touch = input;
                 input = NULL;
             }
-            else
+            else if (report)
             {
                 DMOD_LOG_WARN("dmview: %s is %ux%u, the display %ux%u - not used\n", f.path,
                               (unsigned)info.width, (unsigned)info.height,
@@ -171,7 +178,8 @@ static void open_touch(service_t* s, const char* display_path)
         if (s->touch != NULL)
             return;
     }
-    DMOD_LOG_INFO("dmview: %s has no touch input\n", display_path);
+    if (report)
+        DMOD_LOG_INFO("dmview: %s has no touch input (yet)\n", s->path);
 }
 
 /* ---- Rotation ---- */
@@ -430,8 +438,15 @@ static void run(service_t* s)
 {
     uint32_t deadline = 0;              /* Ms until what the view has due, from `deadline_from` */
     uint32_t deadline_from = dmosi_get_tick_count();
+    uint32_t touch_looked = deadline_from;
     while (!libsystemd_stop_requested())
     {
+        if (s->touch == NULL && dmosi_get_tick_count() - touch_looked >= TOUCH_LOOK_MS)
+        {
+            open_touch(s, false);
+            touch_looked = dmosi_get_tick_count();
+        }
+
         /* What is left of it - drawing took some: a late frame waits for nothing */
         uint32_t spent = dmosi_get_tick_count() - deadline_from;
         uint32_t left = (deadline == LIBDMVIEW_NO_DEADLINE) ? deadline : (spent < deadline) ? deadline - spent : 0U;
@@ -495,15 +510,15 @@ int main(int argc, char* argv[])
     }
     s.name = argv[1];
     char* default_path = concat("/dev/", s.name, "");
-    const char* path = (argc > 2 && argv[2][0] != '\0') ? argv[2] : default_path;
+    s.path = (argc > 2 && argv[2][0] != '\0') ? argv[2] : default_path;
 
     int ret = 0;
     s.wakeup = dmosi_semaphore_create(0, 1);
-    if (s.wakeup == NULL || default_path == NULL || !open_display(&s, path))
+    if (s.wakeup == NULL || default_path == NULL || !open_display(&s, s.path))
         ret = -ENODEV;
     if (ret == 0)
     {
-        open_touch(&s, path);
+        open_touch(&s, true);
         s.display = libdmview_display_register(s.name);
         if (s.display == NULL)
         {

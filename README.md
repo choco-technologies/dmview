@@ -34,7 +34,11 @@ whatever the display's driver. The service:
 1. opens the display node and its framebuffer;
 2. takes its input from the member of the display's `friends_group` that is
    an input device with contacts of the display's resolution
-   (`DMDRVI_IOCTL_DEVFS_GET_FRIEND`, `DMDRVI_IOCTL_INPUT_GET_INFO`);
+   (`DMDRVI_IOCTL_DEVFS_GET_FRIEND`, `DMDRVI_IOCTL_INPUT_GET_INFO`). The
+   display is often reported before its touch panel is configured (a later
+   `driver_order`, a driver loaded from a card or an external flash), so
+   while it has none the service looks through the friends again every
+   second, until the input is there;
 3. shows, in this order:
    - the view the newest running application claimed the display for
      (`libdmview_claim()`, see below),
