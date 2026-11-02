@@ -5,10 +5,10 @@
 /*
  * Rendering, input events and time.
  *
- * Input is runtime level 1 of docs/assembly.md: one contact (the first one
- * of the device's state). The box it touches first - the topmost visible box
- * under it with a pointer handler, or the nearest parent with one - captures
- * it until it is lifted.
+ * Input captures a primary contact, with a second contact for PINCH on
+ * MULTI boxes. Independent simultaneous controls and ROTATE are not implemented.
+ * The topmost visible box under the primary contact, or its nearest parent
+ * with a pointer handler, captures it until it is lifted.
  */
 
 static bool is_view(libdmview_t v)
@@ -62,7 +62,7 @@ static bool has_pointer_handler(const rbox_t* b)
 {
     return b->handlers[DMV_EVENT_PRESS] != DMV_NONE || b->handlers[DMV_EVENT_DRAG] != DMV_NONE ||
            b->handlers[DMV_EVENT_LONG] != DMV_NONE || b->handlers[DMV_EVENT_RELEASE] != DMV_NONE ||
-           b->handlers[DMV_EVENT_CLICK] != DMV_NONE;
+           b->handlers[DMV_EVENT_CLICK] != DMV_NONE || b->handlers[DMV_EVENT_PINCH] != DMV_NONE;
 }
 
 static bool contains(const rect_t* r, int32_t x, int32_t y)
@@ -137,6 +137,77 @@ static void pressed_changed(struct libdmview* v, int32_t box)
         view_mark_dirty(v, box);
 }
 
+/* Integer square root: no floating point or libm dependency on targets. */
+static uint32_t contact_span(int32_t dx, int32_t dy)
+{
+    uint64_t n = (uint64_t)((int64_t)dx * dx) + (uint64_t)((int64_t)dy * dy);
+    uint64_t result = 0, bit = (uint64_t)1 << 62;
+    while (bit > n) bit >>= 2;
+    while (bit != 0)
+    {
+        if (n >= result + bit) { n -= result + bit; result = (result >> 1) + bit; }
+        else result >>= 1;
+        bit >>= 2;
+    }
+    return (uint32_t)result;
+}
+
+static const dmdrvi_input_contact_t* contact_by_id(const dmdrvi_input_state_t* state, uint8_t id)
+{
+    uint32_t count = state->contact_count;
+    if (count > DMDRVI_INPUT_MAX_CONTACTS) count = DMDRVI_INPUT_MAX_CONTACTS;
+    for (uint32_t i = 0; i < count; i++)
+        if (state->contacts[i].id == id) return &state->contacts[i];
+    return NULL;
+}
+
+/* A second finger can join the primary capture only on a MULTI box. Once
+ * captured it remains there outside its bounds too. Single-contact input
+ * and scrolling keep their existing path; no independent second click is
+ * invented, and a pinch never turns into a click when the fingers lift. */
+static bool pinch_input(struct libdmview* v, const dmdrvi_input_state_t* state, int32_t x, int32_t y)
+{
+    int32_t box = v->captured;
+    if (box == ROOT || (v->boxes[box].flags & DMV_BOX_MULTI) == 0) return false;
+    const dmdrvi_input_contact_t* second = v->pinch_active ? contact_by_id(state, v->pinch_id) : NULL;
+    if (second == NULL)
+    {
+        if (v->pinch_active) { v->pinch_active = false; pressed_changed(v, box); }
+        uint32_t count = state->contact_count;
+        if (count > DMDRVI_INPUT_MAX_CONTACTS) count = DMDRVI_INPUT_MAX_CONTACTS;
+        for (uint32_t i = 0; i < count; i++)
+        {
+            const dmdrvi_input_contact_t* c = &state->contacts[i];
+            if (c->id != v->primary_id && hit_test(v, c->x, c->y) == box) { second = c; break; }
+        }
+        if (second == NULL) return false;
+    }
+    int32_t dx = (int32_t)second->x - x, dy = (int32_t)second->y - y;
+    int32_t cx = (x + second->x) / 2, cy = (y + second->y) / 2;
+    uint32_t span = contact_span(dx, dy);
+    if (!v->pinch_active)
+    {
+        v->pinch_active = true;
+        v->pinch_used = true;
+        v->pinch_id = second->id;
+        v->pinch_span = span;
+        v->pinch_dx = dx; v->pinch_dy = dy; v->pinch_cx = cx; v->pinch_cy = cy;
+        pressed_changed(v, box);
+        return true;
+    }
+    if (v->pinch_span == 0) v->pinch_span = span; /* Coincident fingers: establish a nonzero baseline first. */
+    if (v->pinch_span != 0 && (dx != v->pinch_dx || dy != v->pinch_dy || cx != v->pinch_cx || cy != v->pinch_cy))
+    {
+        v->ev[DMV_VAR_EV_CONTACT - DMV_VAR_EV_CONTACT] = v->primary_id;
+        v->ev[DMV_VAR_EV_SCALE - DMV_VAR_EV_CONTACT] = (int32_t)((uint64_t)span * 1000u / v->pinch_span);
+        v->ev[DMV_VAR_EV_CX - DMV_VAR_EV_CONTACT] = cx - v->boxes[box].bounds.x0;
+        v->ev[DMV_VAR_EV_CY - DMV_VAR_EV_CONTACT] = cy - v->boxes[box].bounds.y0;
+        fire(v, box, DMV_EVENT_PINCH, x, y, 0, 0);
+    }
+    v->pinch_dx = dx; v->pinch_dy = dy; v->pinch_cx = cx; v->pinch_cy = cy;
+    return true;
+}
+
 dmod_libdmview_api_declaration(1.0, int, _input, ( libdmview_t view, const dmdrvi_input_state_t* state, uint32_t now_ms ))
 {
     if (!is_view(view) || state == NULL)
@@ -144,10 +215,23 @@ dmod_libdmview_api_declaration(1.0, int, _input, ( libdmview_t view, const dmdrv
     struct libdmview* v = view;
     set_now(v, now_ms);
 
-    bool down = state->contact_count > 0;
-    int32_t x = down ? state->contacts[0].x : v->last_x;
-    int32_t y = down ? state->contacts[0].y : v->last_y;
-    v->ev[DMV_VAR_EV_CONTACT - DMV_VAR_EV_CONTACT] = down ? state->contacts[0].id : 0;
+    const dmdrvi_input_contact_t* primary = v->down ? contact_by_id(state, v->primary_id) : NULL;
+    if (primary == NULL && state->contact_count > 0)
+    {
+        primary = &state->contacts[0];
+        if (v->down && v->pinch_used)
+        {
+            v->last_x = v->start_x = primary->x;
+            v->last_y = v->start_y = primary->y;
+            v->pinch_active = false;
+            pressed_changed(v, v->captured);
+        }
+        v->primary_id = primary->id;
+    }
+    bool down = primary != NULL;
+    int32_t x = down ? primary->x : v->last_x;
+    int32_t y = down ? primary->y : v->last_y;
+    v->ev[DMV_VAR_EV_CONTACT - DMV_VAR_EV_CONTACT] = down ? primary->id : v->primary_id;
 
     if (down && !v->down)
     {
@@ -162,6 +246,13 @@ dmod_libdmview_api_declaration(1.0, int, _input, ( libdmview_t view, const dmdrv
         v->captured = hit_test(v, x, y);
         pressed_changed(v, v->captured);
         fire(v, v->captured, DMV_EVENT_PRESS, x, y, 0, 0);
+        (void)pinch_input(v, state, x, y);
+    }
+    else if (down && pinch_input(v, state, x, y))
+    {
+        /* Rebase the single finger path throughout the gesture. */
+        v->last_x = v->start_x = x;
+        v->last_y = v->start_y = y;
     }
     else if (down && (x != v->last_x || y != v->last_y))
     {
@@ -205,12 +296,17 @@ dmod_libdmview_api_declaration(1.0, int, _input, ( libdmview_t view, const dmdrv
             int32_t held = v->captured;
             v->captured = box;
             fire(v, box, DMV_EVENT_RELEASE, x, y, 0, 0);
-            if (contains(&v->boxes[box].clip, x, y))
+            if (!v->pinch_used && contains(&v->boxes[box].clip, x, y))
                 fire(v, box, DMV_EVENT_CLICK, x, y, 0, 0);
             v->captured = held;
         }
     }
 
+    if (!down)
+    {
+        v->pinch_active = false;
+        v->pinch_used = false;
+    }
     /* .key: buttons that went down */
     uint32_t pressed = state->buttons & ~v->buttons;
     v->buttons = state->buttons;
@@ -281,7 +377,7 @@ dmod_libdmview_api_declaration(1.0, uint32_t, _update, ( libdmview_t view, uint3
             next = wait;
     }
 
-    if (v->down && v->captured != ROOT && !v->long_fired)
+    if (v->down && v->captured != ROOT && !v->long_fired && !v->pinch_used)
     {
         uint32_t held = now_ms - v->press_ms;
         if (held >= v->longpress_ms)
