@@ -253,8 +253,11 @@ never arriving:
 | 3 | `PINCH`, `ROTATE`, two-finger scroll |
 | F | Focus: `FOCUS`, `.navkeys`, activation, `FOCUS`/`BLUR`/`KEY` events, `SETFOCUS` |
 
-The first `libdmview` implements level 1; F and 2-3 come later without changing
-the format.
+The runtime implements level 1 plus a second captured contact and `PINCH`
+on `MULTI` boxes. Contact IDs remain stable if the controller reorders its
+records. `$box.contacts` reports one or two for that capture; lifting a finger
+after a pinch does not click. Independent captures for several controls,
+`ROTATE`, two-finger scrolling and focus navigation remain unimplemented.
 
 ## Syntax
 

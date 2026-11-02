@@ -289,6 +289,12 @@ struct libdmview
     int32_t         captured;       /* Box holding the contact, ROOT for none */
     bool            down;
     bool            long_fired;
+    uint8_t         primary_id;
+    uint8_t         pinch_id;
+    bool            pinch_active;
+    bool            pinch_used;       /* Suppress click/long after a two-finger gesture */
+    uint32_t        pinch_span;
+    int32_t         pinch_dx, pinch_dy, pinch_cx, pinch_cy;
     int32_t         last_x, last_y;
     int32_t         start_x, start_y;   /* Where the contact went down */
     int32_t         scrolling;          /* The scroll box the contact drags (past .scrollslop), ROOT: none */

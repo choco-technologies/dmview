@@ -71,7 +71,7 @@ static int32_t builtin_value(struct libdmview* v, uint32_t index)
             return (box != ROOT && box == v->captured && v->down) ? 1 : 0;
         case DMV_VAR_BOX_CONTACTS:
             record_builtin(v, DEP_CONTACTS);
-            return (box != ROOT && box == v->captured && v->down) ? 1 : 0;
+            return (box != ROOT && box == v->captured && v->down) ? (v->pinch_active ? 2 : 1) : 0;
         case DMV_VAR_BOX_SX:
             record_builtin(v, DEP_SCROLL);
             return (b != NULL) ? b->sx : 0;

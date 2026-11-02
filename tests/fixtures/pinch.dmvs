@@ -1,0 +1,35 @@
+.view pinch
+.size 64, 48
+.var $scale, int, 0
+.var $cx, int, 0
+.var $cy, int, 0
+.var $contacts, int, 0
+.var $clicks, int, 0
+.var $drags, int, 0
+.var $contact, int, -1
+.entry draw
+draw:
+    BOX @map, 0, 0, 64, 48, MULTI
+    ON PRESS, press
+    ON DRAG, drag
+    ON CLICK, click
+    ON PINCH, pinch
+    FILL #112233
+    END
+    RET
+press:
+    SET $contact, $ev.contact
+    RET
+drag:
+    ADD $drags, 1
+    RET
+click:
+    ADD $clicks, 1
+    RET
+pinch:
+    SET $scale, $ev.scale
+    SET $cx, $ev.cx
+    SET $cy, $ev.cy
+    SET $contacts, $box.contacts
+    SET $contact, $ev.contact
+    RET

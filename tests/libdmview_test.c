@@ -1392,3 +1392,63 @@ DMOD_TEST_STEP(libdmview_runs_the_documented_example)
     DMOD_TEST_EXPECT_TRUE(rect_is(&changed, 16, 60, 160, 48));
     DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &screen, &changed), 0);
 }
+
+/* Real state snapshots, including reordered controller contact records. */
+static void pinch_sample(int count, int ax, int bx, bool reverse, uint32_t now)
+{
+    dmdrvi_input_state_t state;
+    memset(&state, 0, sizeof(state));
+    state.contact_count = (uint8_t)count;
+    state.contacts[reverse ? 1 : 0].id = 7;
+    state.contacts[reverse ? 1 : 0].x = (uint16_t)ax;
+    state.contacts[reverse ? 1 : 0].y = 20;
+    state.contacts[reverse ? 0 : 1].id = 9;
+    state.contacts[reverse ? 0 : 1].x = (uint16_t)bx;
+    state.contacts[reverse ? 0 : 1].y = 20;
+    libdmview_input(g_view, &state, now);
+}
+
+DMOD_TEST_STEP(libdmview_pinches_a_multi_box_and_keeps_contact_identity)
+{
+    int32_t value = 0;
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("pinch.dmv")));
+    if (g_view == NULL) return;
+    libdmview_render(g_view, &g_s32, NULL);
+    pinch_sample(2, 10, 30, false, 0);
+    pinch_sample(2, 10, 40, true, 20);
+    libdmview_get_int(g_view, "scale", &value); DMOD_TEST_EXPECT_EQ(value, 1500);
+    libdmview_get_int(g_view, "contacts", &value); DMOD_TEST_EXPECT_EQ(value, 2);
+    libdmview_get_int(g_view, "cx", &value); DMOD_TEST_EXPECT_EQ(value, 25);
+    libdmview_get_int(g_view, "cy", &value); DMOD_TEST_EXPECT_EQ(value, 20);
+    libdmview_get_int(g_view, "contact", &value); DMOD_TEST_EXPECT_EQ(value, 7);
+    libdmview_get_int(g_view, "drags", &value); DMOD_TEST_EXPECT_EQ(value, 0);
+    pinch_sample(2, 15, 25, false, 40);
+    libdmview_get_int(g_view, "scale", &value); DMOD_TEST_EXPECT_EQ(value, 500);
+    pinch_sample(0, 0, 0, false, 60);
+    libdmview_get_int(g_view, "clicks", &value); DMOD_TEST_EXPECT_EQ(value, 0);
+    /* A normal tap after the gesture still clicks. */
+    pinch_sample(1, 10, 0, false, 80);
+    pinch_sample(0, 0, 0, false, 100);
+    libdmview_get_int(g_view, "clicks", &value); DMOD_TEST_EXPECT_EQ(value, 1);
+}
+
+DMOD_TEST_STEP(libdmview_rebases_when_the_primary_finger_is_lifted)
+{
+    int32_t value = 0;
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("pinch.dmv")));
+    if (g_view == NULL) return;
+    libdmview_render(g_view, &g_s32, NULL);
+    pinch_sample(2, 10, 30, false, 0);
+    pinch_sample(2, 10, 40, false, 20);
+    /* Only id 9 remains: no jump and no accidental click. */
+    dmdrvi_input_state_t state;
+    memset(&state, 0, sizeof(state));
+    state.contact_count = 1; state.contacts[0].id = 9;
+    state.contacts[0].x = 40; state.contacts[0].y = 20;
+    libdmview_input(g_view, &state, 40);
+    libdmview_get_int(g_view, "drags", &value); DMOD_TEST_EXPECT_EQ(value, 0);
+    state.contacts[0].x = 45; libdmview_input(g_view, &state, 60);
+    libdmview_get_int(g_view, "drags", &value); DMOD_TEST_EXPECT_EQ(value, 1);
+    pinch_sample(0, 0, 0, false, 80);
+    libdmview_get_int(g_view, "clicks", &value); DMOD_TEST_EXPECT_EQ(value, 0);
+}

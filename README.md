@@ -165,8 +165,8 @@ view: gradients, glass panels, Inter and icon fonts, an animation. The
 ### What is implemented
 
 Runtime level 1 of [docs/assembly.md](docs/assembly.md#runtime-capabilities):
-every instruction, one contact
-(`PRESS`, `DRAG`, `LONG`, `RELEASE`, `CLICK`), `.init`, `.timer`, `.key`,
+one primary contact (`PRESS`, `DRAG`, `LONG`, `RELEASE`, `CLICK`) plus a
+second captured contact for `PINCH` on `MULTI` boxes, `.init`, `.timer`, `.key`,
 `env:` variables, `GOTO`, `SIGNAL`, `EXEC`, `SCROLLTO`, translucent boxes
 (`OPACITY`). Text: antialiased,
 proportional fonts from `.dmvf` files in `$DMVIEW_FONTS` - Roboto
@@ -178,8 +178,8 @@ missing ([docs/assembly.md](docs/assembly.md#fonts)). Linear and radial gradient
 ([docs/image-format.md](docs/image-format.md)) - RGB565, ARGB8888, RGB565
 with alpha, 8-bit palette - drawn with `IMAGE`, masks (A8, A4) painted with
 a color or a gradient by `ICON`; other formats are converted by todmvi
-([docs/assembly.md](docs/assembly.md#images)). Not yet: scrolling by dragging, focus, several
-contacts and gestures. Pixel formats: RGB565, ARGB8888.
+([docs/assembly.md](docs/assembly.md#images)). Not yet: focus, independent simultaneous captures, `ROTATE` and two-finger
+scrolling. Pixel formats: RGB565, ARGB8888.
 
 ## Building
 
