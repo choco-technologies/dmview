@@ -36,6 +36,9 @@ static image_t*         g_images;
 
 /* The loader thread: reads the images that are IMAGE_LOADING */
 static dmosi_thread_t   g_loader;
+/* NULL in thread_create means the caller's process, not a detached thread.
+ * Give this library-wide worker an explicit detached lifetime instead. */
+static dmosi_process_t  g_loader_process;
 static dmosi_semaphore_t g_loader_wake;
 static volatile bool    g_loader_quit;
 static volatile uint32_t g_loaded;      /* Grows when an image is read (or failed): views look at their slots */
@@ -67,6 +70,9 @@ void images_deinit(void)
         dmosi_thread_destroy(g_loader);
         g_loader = NULL;
     }
+    if (g_loader_process != NULL)
+        dmosi_process_destroy(g_loader_process);
+    g_loader_process = NULL;
     if (g_loader_wake != NULL)
         dmosi_semaphore_destroy(g_loader_wake);
     g_loader_wake = NULL;
@@ -404,9 +410,14 @@ static image_t* acquire_later(const char* path)
         g_loader_wake = dmosi_semaphore_create(0, LOADER_WAKE_MAX);
     if (start && g_loader_wake != NULL)
     {
-        /* Not a process's: a view service that stops does not take it with it */
-        g_loader = dmosi_thread_create(loader_thread, NULL, dmosi_thread_get_priority(NULL), LOADER_STACK,
-                                       "libdmview_images", NULL);
+        /* The first caller may be a temporary test or a view being restarted.
+         * Its teardown must not kill the shared loader and strand IMAGE_LOADING
+         * slots behind a stale g_loader handle. */
+        if (g_loader_process == NULL)
+            g_loader_process = dmosi_process_create("libdmview_images", "libdmview", NULL);
+        if (g_loader_process != NULL)
+            g_loader = dmosi_thread_create(loader_thread, NULL, dmosi_thread_get_priority(NULL), LOADER_STACK,
+                                           "libdmview_images", g_loader_process);
         if (g_loader == NULL)
             DMOD_LOG_ERROR("libdmview: no thread to read images\n");
     }

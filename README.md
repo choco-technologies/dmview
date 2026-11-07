@@ -153,6 +153,11 @@ Drawing is what a view does all the time, so:
   radial one takes its square root from a table; on RGB565 opaque gradients
   are dithered, without bands.
 
+Changing an image source after its first draw loads it in the background.
+The shared image worker has its own detached process and lives until
+`libdmview` is deinitialized. Closing the view or restarting the application
+that first requested an asynchronous image does not stop other views' loading.
+
 ### Example
 
 [examples/dmodos](examples/dmodos) - a home screen with six applications for
