@@ -34,12 +34,11 @@ whatever the display's driver. The service:
 1. opens the display node and its framebuffer;
 2. takes its input from libinput ([dminput](https://github.com/choco-technologies/dminput): an
    `inputd` service reads each input device and libinput is where their events come together).
-   The events of the **members of the display's `friends_group`** are the display's
-   (`DMDRVI_IOCTL_DEVFS_GET_FRIEND`): the state of a touch panel (or buttons) goes to the view, the
-   keys of a keyboard to the application that claimed the display (`libdmview_key()`: the events
-   `mods`, `char` and `key` of the claim). The display is often reported before its touch panel
-   or keyboard is configured (a later `driver_order`, a driver loaded from a card or an external
-   flash), so the service looks through the friends again every second;
+   Every event carries the name of the `friends_group` of its device, and the ones whose group is
+   the display's (`DMDRVI_IOCTL_DEVFS_GET_GROUP` on its node) are the display's: the state of a
+   touch panel (or buttons) goes to the view, the keys of a keyboard to the application that
+   claimed the display (`libdmview_key()`: the events `mods`, `char` and `key` of the claim). The
+   display does not know its inputs, so it does not matter when their drivers are configured;
 3. shows, in this order:
    - the view the newest running application claimed the display for
      (`libdmview_claim()`, see below),

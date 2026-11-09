@@ -19,13 +19,12 @@
  *  2. $DMVIEW_VIEWS/<display name>.dmv, if that file exists,
  *  3. $DMVIEW_DEFAULT.
  *
- * Input comes from libinput (the inputd services read the devices): a
- * reader of its own gets every event, and the ones of the other members of the
- * display's friends_group are the display's - a touch panel's state goes to the
- * view, a keyboard's keys to the application that claimed the display (see
- * libdmview_key()). The friends are looked through again every DEVICES_LOOK_MS:
- * the display is often reported before its touch panel or keyboard is configured
- * (another driver_order, a driver from a card or the external flash).
+ * Input comes from libinput (the inputd services read the devices): a reader of
+ * its own gets every event, each with the name of the friends_group of its device,
+ * and the ones whose group is the display's are the display's - a touch panel's
+ * state goes to the view, a keyboard's keys to the application that claimed the
+ * display (see libdmview_key()). The display knows nothing of its inputs: no
+ * matter when their drivers are configured, the group tells.
  *
  * A view designed for a portrait screen on a landscape display (or the
  * other way round) is turned by 90 degrees: it is drawn into a buffer of
@@ -35,8 +34,6 @@
  */
 
 #define CLAIM_POLL_MS   100u     /* Longest wait - claims and stop requests are seen this fast */
-#define DEVICES_LOOK_MS 1000u    /* The friends of the display are looked through again this often */
-#define MAX_DEVICES     8u       /* Inputs one display takes events from */
 #define MAX_BATCH       64u      /* Events taken between two drawings */
 #define ROTATE_TILE     16u      /* Lines of a view turned at once - they stay in the cache */
 
@@ -53,8 +50,7 @@ typedef struct
     libdmview_rect_t    last;       /* Turned and double buffered: what the previous frame changed */
     bool                swap;       /* ... presented by swapping the buffers, without a copy */
     libinput_reader_t   reader;     /* NULL: no input (libinput is not there) */
-    libinput_device_t   devices[MAX_DEVICES];   /* The inputs of the display: libinput_device_id() of the nodes of its friends */
-    uint32_t            device_count;
+    char                group[DMDRVI_DEVFS_GROUP_NAME_MAX];  /* The friends_group of the display: the events of its inputs say the same */
     libdmview_display_t display;
     uint32_t            generation;
     libdmview_t         view;
@@ -137,45 +133,6 @@ static bool open_display(service_t* s, const char* path)
     if (s->info.buffer_count > 1)
         DMOD_LOG_INFO("dmview: %s is double buffered\n", path);
     return true;
-}
-
-/* The inputs of the display: its friends (the other members of its friends_group). Their nodes may not be read yet -
- * only libinput_device_id() of their paths is kept, and the events of libinput say where they are from. `report` logs
- * what changed. */
-static void look_devices(service_t* s, bool report)
-{
-    libinput_device_t ids[MAX_DEVICES];
-    uint32_t count = 0;
-    for (uint32_t index = 0; count < MAX_DEVICES; index++)
-    {
-        char path[96];
-        dmdrvi_devfs_friend_t f;
-        memset(&f, 0, sizeof(f));
-        f.index = index;
-        f.path = path;
-        f.path_size = sizeof(path);
-        int ret = Dmod_Ioctl(s->gfx, DMDRVI_IOCTL_DEVFS_GET_FRIEND, &f);
-        if (ret == -ENOENT)
-            break;                                  /* No more members */
-        if (ret == 0)
-            ids[count++] = libinput_device_id(path);
-        else if (ret != -ERANGE)
-            break;                                  /* (a path that is too long is left out) */
-    }
-    if (report && count != s->device_count)
-        DMOD_LOG_INFO("dmview: %s takes its input from %u friends\n", s->path, (unsigned)count);
-    memcpy(s->devices, ids, count * sizeof(ids[0]));
-    s->device_count = count;
-}
-
-static bool is_ours(const service_t* s, libinput_device_t device)
-{
-    for (uint32_t i = 0; i < s->device_count; i++)
-    {
-        if (s->devices[i] == device)
-            return true;
-    }
-    return false;
 }
 
 /* ---- Rotation ---- */
@@ -431,8 +388,8 @@ static void show_view(service_t* s, char* path)
 /* An event of libinput: a state (touch, buttons) is the view's, a key is the application's */
 static void handle_event(service_t* s, const libinput_event_t* event, uint32_t now)
 {
-    if (s->view == NULL || !is_ours(s, event->device))
-        return;
+    if (s->view == NULL || strcmp(event->group, s->group) != 0)
+        return;                     /* The input of another display */
     if (event->type == LIBINPUT_EVENT_STATE)
     {
         dmdrvi_input_state_t state = event->u.state;
@@ -453,15 +410,8 @@ static void run(service_t* s)
 {
     uint32_t deadline = 0;              /* Ms until what the view has due, from `deadline_from` */
     uint32_t deadline_from = dmosi_get_tick_count();
-    uint32_t devices_looked = deadline_from;
     while (!libsystemd_stop_requested())
     {
-        if (dmosi_get_tick_count() - devices_looked >= DEVICES_LOOK_MS)
-        {
-            look_devices(s, false);
-            devices_looked = dmosi_get_tick_count();
-        }
-
         /* What is left of it - drawing took some: a late frame waits for nothing */
         uint32_t spent = dmosi_get_tick_count() - deadline_from;
         uint32_t left = (deadline == LIBDMVIEW_NO_DEADLINE) ? deadline : (spent < deadline) ? deadline - spent : 0U;
@@ -535,7 +485,10 @@ int main(int argc, char* argv[])
         ret = -ENODEV;
     if (ret == 0)
     {
-        look_devices(&s, true);
+        dmdrvi_devfs_group_t group;
+        if (Dmod_Ioctl(s.gfx, DMDRVI_IOCTL_DEVFS_GET_GROUP, &group) == 0)
+            memcpy(s.group, group.name, sizeof(s.group));
+        DMOD_LOG_INFO("dmview: %s takes the input of the group \"%s\"\n", s.path, s.group);
         s.reader = libinput_reader_open();
         if (s.reader == NULL)
             DMOD_LOG_WARN("dmview: %s has no input (libinput has no reader for it)\n", s.name);
