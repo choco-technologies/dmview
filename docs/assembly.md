@@ -29,7 +29,7 @@ a firmware contains only what it needs:
 | `libtodmv` | Library | Assembler and disassembler as an API working on streams, never on whole files: `.dmvs` read line by line -> `.dmv` written as it is assembled, every error with line and column; `.dmv` -> `.dmvs`; validation of a `.dmv` |
 | `todmv` | Application | Small command-line tool on top of `libtodmv`: `todmv view.dmvs -o view.dmv`, `todmv -d view.dmv` to disassemble |
 | `libdmview` | Library | Runtime: loads a `.dmv`, draws it into a framebuffer, turns `DMDRVI_IOCTL_INPUT_*` state into events; the display registry for application claims |
-| `dmview` | Service | One instance per display (`dmview@<name>`, started by a device rule): opens the display and its touch input, shows the right view |
+| `dmview` | Service | One instance per display (`dmview@<name>`, started by a device rule): opens the display and takes its input from libinput, shows the right view |
 | `dmhtml`, `dmcss` | Libraries | HTML / CSS front end; produce `.dmvs` and hand it to `libtodmv` line by line through its source stream, no intermediate file needed |
 
 Like `libsystemd` and `systemd` in dmsystem, the library and the program

@@ -1041,6 +1041,48 @@ DMOD_TEST_STEP(libdmview_claims_are_channels)
     libdmview_display_unregister(display);
 }
 
+/* A key of a keyboard goes to the application of the claim: the characters, the keys that give none, the modifiers */
+DMOD_TEST_STEP(libdmview_keys_go_to_the_application)
+{
+    uint32_t claim = 0;
+    libdmview_event_t ev;
+    libdmview_display_t display = libdmview_display_register("keys");
+    DMOD_TEST_EXPECT_NOT_NULL(display);
+    DMOD_TEST_EXPECT_EQ(libdmview_claim("keys", FIXTURE("channel.dmv"), &claim), 0);
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("channel.dmv")));
+    DMOD_TEST_EXPECT_EQ(libdmview_attach(g_view, display), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_key(NULL, 4, 'a', true, 0), -EINVAL);
+
+    DMOD_TEST_EXPECT_EQ(libdmview_key(g_view, 0x04, 'a', true, 0), 0);          /* a character */
+    DMOD_TEST_EXPECT_EQ(libdmview_key(g_view, 0x04, 'a', false, 0), 0);         /* its release says nothing */
+    DMOD_TEST_EXPECT_EQ(libdmview_wait_event(claim, &ev, 0), 0);
+    DMOD_TEST_EXPECT_EQ(strcmp(ev.name, "char"), 0);
+    DMOD_TEST_EXPECT_EQ(ev.value, (int32_t)'a');
+    DMOD_TEST_EXPECT_EQ(libdmview_wait_event(claim, &ev, 0), -ETIMEDOUT);
+
+    DMOD_TEST_EXPECT_EQ(libdmview_key(g_view, 0xE1, 0, true, 1), 0);            /* shift down: the modifiers only */
+    DMOD_TEST_EXPECT_EQ(libdmview_wait_event(claim, &ev, 0), 0);
+    DMOD_TEST_EXPECT_EQ(strcmp(ev.name, "mods"), 0);
+    DMOD_TEST_EXPECT_EQ(ev.value, 1);
+    DMOD_TEST_EXPECT_EQ(libdmview_key(g_view, 0x04, 'A', true, 1), 0);          /* a character: no change of mods */
+    DMOD_TEST_EXPECT_EQ(libdmview_wait_event(claim, &ev, 0), 0);
+    DMOD_TEST_EXPECT_EQ(strcmp(ev.name, "char"), 0);
+    DMOD_TEST_EXPECT_EQ(ev.value, (int32_t)'A');
+    DMOD_TEST_EXPECT_EQ(libdmview_key(g_view, 0xE1, 0, false, 0), 0);           /* shift up */
+    DMOD_TEST_EXPECT_EQ(libdmview_wait_event(claim, &ev, 0), 0);
+    DMOD_TEST_EXPECT_EQ(strcmp(ev.name, "mods"), 0);
+    DMOD_TEST_EXPECT_EQ(ev.value, 0);
+
+    DMOD_TEST_EXPECT_EQ(libdmview_key(g_view, 0x28, 0, true, 0), 0);            /* Enter: a key without a character */
+    DMOD_TEST_EXPECT_EQ(libdmview_wait_event(claim, &ev, 0), 0);
+    DMOD_TEST_EXPECT_EQ(strcmp(ev.name, "key"), 0);
+    DMOD_TEST_EXPECT_EQ(ev.value, 0x28);
+    DMOD_TEST_EXPECT_EQ(libdmview_wait_event(claim, &ev, 0), -ETIMEDOUT);
+
+    DMOD_TEST_EXPECT_EQ(libdmview_release(claim), 0);
+    libdmview_display_unregister(display);
+}
+
 /* ---- Images ---- */
 
 /* A .dmvi file (docs/image-format.md): `rows` rows of `row` bytes of

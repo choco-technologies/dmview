@@ -208,6 +208,27 @@ static bool pinch_input(struct libdmview* v, const dmdrvi_input_state_t* state, 
     return true;
 }
 
+/* A key of a keyboard goes to the application of the claim (a view has no text fields): see libdmview.h */
+dmod_libdmview_api_declaration(1.0, int, _key, ( libdmview_t view, uint16_t code, uint32_t codepoint, bool down, uint8_t modifiers ))
+{
+    if (!is_view(view))
+        return -EINVAL;
+    bool changed = modifiers != view->key_mods;
+    if (changed)
+    {
+        view->key_mods = modifiers;
+        claims_emit(view, "mods", (int32_t)modifiers);
+    }
+    if (!down)
+        return 0;
+    bool modifier_key = (code >= 0xE0u && code <= 0xE7u) || (codepoint == 0 && changed);   /* (it gave "mods") */
+    if (codepoint != 0)
+        claims_emit(view, "char", (int32_t)codepoint);
+    else if (!modifier_key)
+        claims_emit(view, "key", (int32_t)code);
+    return 0;
+}
+
 dmod_libdmview_api_declaration(1.0, int, _input, ( libdmview_t view, const dmdrvi_input_state_t* state, uint32_t now_ms ))
 {
     if (!is_view(view) || state == NULL)

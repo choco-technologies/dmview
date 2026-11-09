@@ -301,6 +301,7 @@ struct libdmview
     int32_t         scroll_sx, scroll_sy;   /* Its offset when it took the contact over */
     uint16_t        scrollslop;         /* .scrollslop, px */
     uint32_t        press_ms;
+    uint8_t         key_mods;       /* The modifiers libdmview_key() last told the application */
     uint32_t        buttons;
     bool            have_now;
     uint32_t        start_ms, now_ms;

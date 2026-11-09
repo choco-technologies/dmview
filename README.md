@@ -32,13 +32,14 @@ starts `dmview@<name>` ([configs/dmview@.ini](configs/dmview@.ini)) for it -
 whatever the display's driver. The service:
 
 1. opens the display node and its framebuffer;
-2. takes its input from the member of the display's `friends_group` that is
-   an input device with contacts of the display's resolution
-   (`DMDRVI_IOCTL_DEVFS_GET_FRIEND`, `DMDRVI_IOCTL_INPUT_GET_INFO`). The
-   display is often reported before its touch panel is configured (a later
-   `driver_order`, a driver loaded from a card or an external flash), so
-   while it has none the service looks through the friends again every
-   second, until the input is there;
+2. takes its input from libinput ([dminput](https://github.com/choco-technologies/dminput): an
+   `inputd` service reads each input device and libinput is where their events come together).
+   The events of the **members of the display's `friends_group`** are the display's
+   (`DMDRVI_IOCTL_DEVFS_GET_FRIEND`): the state of a touch panel (or buttons) goes to the view, the
+   keys of a keyboard to the application that claimed the display (`libdmview_key()`: the events
+   `mods`, `char` and `key` of the claim). The display is often reported before its touch panel
+   or keyboard is configured (a later `driver_order`, a driver loaded from a card or an external
+   flash), so the service looks through the friends again every second;
 3. shows, in this order:
    - the view the newest running application claimed the display for
      (`libdmview_claim()`, see below),
@@ -73,8 +74,9 @@ dmview service=dmview@.ini
 dmview rules=dmview.rules
 ```
 
-and in the board configuration, the display and its touch panel in one
-`friends_group`.
+and in the board configuration, the display and its touch panel (and keyboard) in one
+`friends_group`. The input services come from dminput (`libinput`, `inputd service=inputd@.ini`,
+`inputd rules=inputd.rules`).
 
 ### Applications on a display
 
@@ -116,7 +118,7 @@ libdmview_t view = libdmview_open("/flash/views/main.dmv", &status);
 libdmview_surface_t s = { framebuffer, 480, 272, 480 * 2, DMDRVI_GFX_PIXEL_FORMAT_RGB565 };
 for (;;)
 {
-    /* input state from DMDRVI_IOCTL_INPUT_WAIT_EVENT / read() of the input node */
+    /* input state from the input device: libinput_read(), or DMDRVI_IOCTL_INPUT_WAIT_EVENT / read() of the node */
     libdmview_input(view, &state, now_ms);
     uint32_t next = libdmview_update(view, now_ms);      /* timers, long press */
     libdmview_rect_t changed;
