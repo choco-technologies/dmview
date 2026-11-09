@@ -68,6 +68,25 @@ dmod_libdmview_api(1.0, void, _invalidate, ( libdmview_t view ));
 dmod_libdmview_api(1.0, int, _input, ( libdmview_t view, const dmdrvi_input_state_t* state, uint32_t now_ms ));
 
 /**
+ * @brief A key of a keyboard, for the application that claimed the display. A view has no text
+ *        fields: what is typed is the application's, so the key goes to it as events of the claim
+ *        (libdmview_wait_event()):
+ *          - "mods": the modifiers changed - value: the bits (LIBINPUT_MOD_*: shift 1, ctrl 2, alt 4,
+ *            sym 8, caps 16),
+ *          - "char": a key that gives a character went down - value: the Unicode character,
+ *          - "key":  a key that gives none went down (Enter, Backspace, an arrow) - value: its
+ *            USB HID usage.
+ *        A modifier key gives "mods" only, a release gives nothing but a change of "mods".
+ *
+ * @param code      The key: a USB HID usage
+ * @param codepoint What it gave in the layer in effect, 0: none
+ * @param down      Went down (else: up)
+ * @param modifiers The modifiers in effect
+ * @return 0, -EINVAL
+ */
+dmod_libdmview_api(1.0, int, _key, ( libdmview_t view, uint16_t code, uint32_t codepoint, bool down, uint8_t modifiers ));
+
+/**
  * @brief Run what is due at @p now_ms: .timer handlers, LONG.
  *
  * @return Milliseconds until the next deadline, LIBDMVIEW_NO_DEADLINE when

@@ -1,6 +1,7 @@
 #include "dmod.h"
 #include "dmosi.h"
 #include "libdmview.h"
+#include "libinput.h"
 #include "libsystemd.h"
 #include "dmvfs.h"
 #include <errno.h>
@@ -18,11 +19,12 @@
  *  2. $DMVIEW_VIEWS/<display name>.dmv, if that file exists,
  *  3. $DMVIEW_DEFAULT.
  *
- * Input comes from the member of the display's friends_group that is an
- * input device with contacts of the display's resolution. The display is
- * often reported before its touch panel is configured (another driver_order,
- * a driver from a card or the external flash), so without one the friends
- * are looked through again every TOUCH_LOOK_MS until it is there.
+ * Input comes from libinput (the inputd services read the devices): a reader of
+ * its own gets every event, each with the name of the friends_group of its device,
+ * and the ones whose group is the display's are the display's - a touch panel's
+ * state goes to the view, a keyboard's keys to the application that claimed the
+ * display (see libdmview_key()). The display knows nothing of its inputs: no
+ * matter when their drivers are configured, the group tells.
  *
  * A view designed for a portrait screen on a landscape display (or the
  * other way round) is turned by 90 degrees: it is drawn into a buffer of
@@ -32,7 +34,7 @@
  */
 
 #define CLAIM_POLL_MS   100u     /* Longest wait - claims and stop requests are seen this fast */
-#define TOUCH_LOOK_MS   1000u    /* Without an input: the friends are looked through again this often */
+#define MAX_BATCH       64u      /* Events taken between two drawings */
 #define ROTATE_TILE     16u      /* Lines of a view turned at once - they stay in the cache */
 
 typedef struct
@@ -47,7 +49,8 @@ typedef struct
     void*               turned;     /* Buffer of a turned view */
     libdmview_rect_t    last;       /* Turned and double buffered: what the previous frame changed */
     bool                swap;       /* ... presented by swapping the buffers, without a copy */
-    void*               touch;
+    libinput_reader_t   reader;     /* NULL: no input (libinput is not there) */
+    char                group[DMDRVI_DEVFS_GROUP_NAME_MAX];  /* The friends_group of the display: the events of its inputs say the same */
     libdmview_display_t display;
     uint32_t            generation;
     libdmview_t         view;
@@ -130,56 +133,6 @@ static bool open_display(service_t* s, const char* path)
     if (s->info.buffer_count > 1)
         DMOD_LOG_INFO("dmview: %s is double buffered\n", path);
     return true;
-}
-
-/* The friend of the display that is an input device of its resolution.
- * `report` logs what is not used and a missing input - once, not on every
- * later look (see TOUCH_LOOK_MS). */
-static void open_touch(service_t* s, bool report)
-{
-    for (uint32_t index = 0; ; index++)
-    {
-        dmdrvi_devfs_friend_t f;
-        memset(&f, 0, sizeof(f));
-        f.index = index;
-        if (Dmod_Ioctl(s->gfx, DMDRVI_IOCTL_DEVFS_GET_FRIEND, &f) != -ERANGE)   /* NULL buffers: lengths */
-            break;
-        f.path_size = f.path_length + 1U;
-        f.role_size = f.role_length + 1U;
-        f.path = Dmod_Malloc(f.path_size);
-        f.role = Dmod_Malloc(f.role_size);
-        void* input = NULL;
-        if (f.path != NULL && f.role != NULL && Dmod_Ioctl(s->gfx, DMDRVI_IOCTL_DEVFS_GET_FRIEND, &f) == 0)
-            input = Dmod_FileOpen(f.path, "r");
-
-        dmdrvi_input_info_t info;
-        if (input != NULL && Dmod_Ioctl(input, DMDRVI_IOCTL_INPUT_GET_INFO, &info) == 0 &&
-            (info.capabilities & DMDRVI_INPUT_CAP_CONTACTS) != 0)
-        {
-            if (info.width == s->info.width && info.height == s->info.height)
-            {
-                DMOD_LOG_INFO("dmview: %s takes its input from %s\n", s->path, f.path);
-                s->touch = input;
-                input = NULL;
-            }
-            else if (report)
-            {
-                DMOD_LOG_WARN("dmview: %s is %ux%u, the display %ux%u - not used\n", f.path,
-                              (unsigned)info.width, (unsigned)info.height,
-                              (unsigned)s->info.width, (unsigned)s->info.height);
-            }
-        }
-        if (input != NULL)
-            Dmod_FileClose(input);
-        if (f.path != NULL)
-            Dmod_Free(f.path);
-        if (f.role != NULL)
-            Dmod_Free(f.role);
-        if (s->touch != NULL)
-            return;
-    }
-    if (report)
-        DMOD_LOG_INFO("dmview: %s has no touch input (yet)\n", s->path);
 }
 
 /* ---- Rotation ---- */
@@ -432,40 +385,54 @@ static void show_view(service_t* s, char* path)
     }
 }
 
+/* An event of libinput: a state (touch, buttons) is the view's, a key is the application's */
+static void handle_event(service_t* s, const libinput_event_t* event, uint32_t now)
+{
+    if (s->view == NULL || strcmp(event->group, s->group) != 0)
+        return;                     /* The input of another display */
+    if (event->type == LIBINPUT_EVENT_STATE)
+    {
+        dmdrvi_input_state_t state = event->u.state;
+        if (s->turned != NULL)
+            turn_input(s, &state);
+        (void)libdmview_input(s->view, &state, now);
+    }
+    else if (event->type == LIBINPUT_EVENT_KEY)
+    {
+        (void)libdmview_key(s->view, event->u.key.code, event->u.key.codepoint,
+                            event->u.key.action == LIBINPUT_ACTION_DOWN, event->u.key.modifiers);
+    }
+}
+
 /* ---- Main loop ---- */
 
 static void run(service_t* s)
 {
     uint32_t deadline = 0;              /* Ms until what the view has due, from `deadline_from` */
     uint32_t deadline_from = dmosi_get_tick_count();
-    uint32_t touch_looked = deadline_from;
     while (!libsystemd_stop_requested())
     {
-        if (s->touch == NULL && dmosi_get_tick_count() - touch_looked >= TOUCH_LOOK_MS)
-        {
-            open_touch(s, false);
-            touch_looked = dmosi_get_tick_count();
-        }
-
         /* What is left of it - drawing took some: a late frame waits for nothing */
         uint32_t spent = dmosi_get_tick_count() - deadline_from;
         uint32_t left = (deadline == LIBDMVIEW_NO_DEADLINE) ? deadline : (spent < deadline) ? deadline - spent : 0U;
         uint32_t wait = (left < CLAIM_POLL_MS) ? left : CLAIM_POLL_MS;
-        dmdrvi_input_state_t state;
-        bool have_state = false;
 
-        if (s->touch != NULL)
-            have_state = Dmod_Ioctl(s->touch, DMDRVI_IOCTL_INPUT_WAIT_EVENT, &wait) == 0 &&
-                         Dmod_FileRead(&state, 1, sizeof(state), s->touch) == sizeof(state);
+        /* One wait for every input there is: an event, or what is left until the view has something due */
+        libinput_event_t event;
+        int got = 0;
+        if (s->reader != NULL)
+            got = libinput_read(s->reader, &event, wait);
         else
             (void)dmosi_semaphore_wait(s->wakeup, 1, (int32_t)wait);
 
+        if (got < 0)
+            (void)dmosi_semaphore_wait(s->wakeup, 1, (int32_t)wait);      /* (not a busy loop) */
+
         uint32_t now = dmosi_get_tick_count();
-        if (s->view != NULL && have_state)
+        for (uint32_t n = 0; got == 1 && n < MAX_BATCH; n++)
         {
-            if (s->turned != NULL)
-                turn_input(s, &state);
-            (void)libdmview_input(s->view, &state, now);
+            handle_event(s, &event, now);
+            got = libinput_read(s->reader, &event, 0);
         }
         deadline = (s->view != NULL) ? libdmview_update(s->view, now) : LIBDMVIEW_NO_DEADLINE;
         deadline_from = now;
@@ -518,7 +485,13 @@ int main(int argc, char* argv[])
         ret = -ENODEV;
     if (ret == 0)
     {
-        open_touch(&s, true);
+        dmdrvi_devfs_group_t group;
+        if (Dmod_Ioctl(s.gfx, DMDRVI_IOCTL_DEVFS_GET_GROUP, &group) == 0)
+            memcpy(s.group, group.name, sizeof(s.group));
+        DMOD_LOG_INFO("dmview: %s takes the input of the group \"%s\"\n", s.path, s.group);
+        s.reader = libinput_reader_open();
+        if (s.reader == NULL)
+            DMOD_LOG_WARN("dmview: %s has no input (libinput has no reader for it)\n", s.name);
         s.display = libdmview_display_register(s.name);
         if (s.display == NULL)
         {
@@ -540,8 +513,8 @@ int main(int argc, char* argv[])
     if (s.view_path != NULL)
         Dmod_Free(s.view_path);
     libdmview_display_unregister(s.display);
-    if (s.touch != NULL)
-        Dmod_FileClose(s.touch);
+    if (s.reader != NULL)
+        libinput_reader_close(s.reader);
     if (s.gfx != NULL)
         Dmod_FileClose(s.gfx);
     if (s.wakeup != NULL)
