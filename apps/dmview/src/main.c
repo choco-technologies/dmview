@@ -443,6 +443,8 @@ static void run(service_t* s)
             show_view(s, Dmod_StrDup(next));
         if (libdmview_display_generation(s->display) != s->generation)
         {
+            if (s->reader != NULL)
+                (void)libinput_reader_flush(s->reader);            /* what was typed for the view that went is not for the next one */
             show_view(s, choose_view(s));
             if (s->view != NULL)
                 (void)libdmview_attach(s->view, s->display);   /* (the same view, another claim) */
