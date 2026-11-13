@@ -1,0 +1,17 @@
+; The view of the owner of a display in the tests of the screen rent: blue all over, a click is told to its application
+.view   rent_owner
+.entry  draw
+
+.var    $clicks, int, 0
+
+draw:
+        BOX     @all, 0, 0, $view.w, $view.h, OPAQUE
+        ON      CLICK, clicked
+        FILL    #0000FF
+        END
+        RET
+
+clicked:
+        ADD     $clicks, 1
+        EMIT    "owner_click", $clicks
+        RET

@@ -271,6 +271,7 @@ struct libdmview
 
     /* Drawing */
     bool            full;           /* Everything has to be drawn */
+    rect_t          damage;         /* An area to be drawn (libdmview_invalidate_rect()): empty when none */
     bool            any_dirty;
     bool            any_scrolled;       /* A box's SCROLLED due */
     int32_t         occluder;       /* A redraw of the root: the box that hides what is drawn before it, -1 */

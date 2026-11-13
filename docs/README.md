@@ -12,6 +12,7 @@ display service.
 - **[font-format.md](font-format.md)** - `.dmvf` font files: antialiased glyphs, made by todmvf
 - **[image-format.md](image-format.md)** - `.dmvi` image files: raw pixels and masks, made by todmvi
 - **[api-reference.md](api-reference.md)** - libdmview: views, displays and claims
+- **[rent.md](rent.md)** - screen rent: an application that owns a display rents rectangles of it to other applications
 
 ## Quick Reference
 

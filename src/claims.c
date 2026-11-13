@@ -20,6 +20,11 @@
  * touches the view. Everything is found by the claim's id under g_lock -
  * nobody keeps a pointer to a claim but a thread waiting for its events,
  * which holds it (`waiters`) until it is done.
+ *
+ * Screen rent (libdmview_rent_*): a claim on top of a display may rent rectangles of its view. A rent
+ * belongs to the claim (it is gone with it) and holds one more claim - the application's that took it,
+ * which is not on the display's stack: it does not take the display, the service shows its view in the
+ * rectangle. Such a claim is a channel like any other; find_claim() finds it too.
  */
 
 #define DISPLAY_MAGIC   0x44535059u     /* 'DSPY' */
@@ -34,11 +39,15 @@ typedef struct
     bool        pending;        /* Set by the application, not in the view yet */
 } prop_t;
 
+struct rent;
+
 typedef struct claim
 {
     uint32_t                    id;
     dmosi_process_id_t          pid;
     char*                       path;
+    struct rent*                rents;          /* Rented out of its view, oldest first */
+    uint32_t                    rent;           /* A claim in a rent: its id, else 0 */
     prop_t*                     props;
     uint32_t                    prop_count;
     bool                        pending;        /* A property is */
@@ -51,12 +60,27 @@ typedef struct claim
     bool                        released;       /* Out of its display, freed by the last waiter */
 } claim_t;
 
+typedef struct rent
+{
+    struct rent*                next;
+    uint32_t                    id;
+    struct libdmview_display*   display;
+    claim_t*                    owner;
+    claim_t*                    child;          /* The application's claim, NULL: nobody */
+    libdmview_rect_t            rect;
+    bool                        visible;
+    bool                        focus;
+    uint16_t                    escape;
+    dmosi_process_id_t          bound;          /* The only process that may take it, 0: any */
+} rent_t;
+
 struct libdmview_display
 {
     uint32_t                    magic;
     struct libdmview_display*   next;
     char*                       name;
     uint32_t                    generation;
+    uint32_t                    rent_generation;
     claim_t**                   claims;     /* Oldest first */
     uint32_t                    count;
     uint32_t                    capacity;
@@ -65,6 +89,7 @@ struct libdmview_display
 static dmosi_mutex_t                g_lock;
 static struct libdmview_display*    g_displays;     /* Newest first */
 static uint32_t                     g_next_claim = 1;
+static uint32_t                     g_next_rent = 1;
 
 int claims_init(void)
 {
@@ -123,16 +148,55 @@ static void claim_release(claim_t* c)
         claim_free(c);
 }
 
+/* An event for the application of a claim, as the view's EMIT gives it; the oldest goes when the queue is full. Under g_lock */
+static void queue_event(claim_t* c, const char* name, int32_t value)
+{
+    if (c == NULL || c->released)
+        return;
+    bool full = c->count == LIBDMVIEW_EVENT_QUEUE;
+    if (full)
+    {
+        /* The oldest goes - its post stays for the new one */
+        c->first = (c->first + 1U) % LIBDMVIEW_EVENT_QUEUE;
+        c->count--;
+        c->dropped++;
+    }
+    libdmview_event_t* e = &c->events[(c->first + c->count) % LIBDMVIEW_EVENT_QUEUE];
+    strncpy(e->name, name, sizeof(e->name) - 1U);
+    e->name[sizeof(e->name) - 1U] = '\0';
+    e->value = value;
+    e->dropped = 0;
+    c->count++;
+    if (!full)
+        (void)dmosi_semaphore_post(c->ready, 1);
+}
+
+/* A rent and the application in it go with the claim that rented it. Under g_lock */
+static void destroy_rents(claim_t* owner)
+{
+    while (owner->rents != NULL)
+    {
+        rent_t* r = owner->rents;
+        owner->rents = r->next;
+        if (r->child != NULL)
+            claim_release(r->child);
+        Dmod_Free(r);
+    }
+}
+
 static void drop_claim(struct libdmview_display* d, uint32_t i)
 {
     claim_t* c = d->claims[i];
     memmove(&d->claims[i], &d->claims[i + 1], (d->count - i - 1U) * sizeof(claim_t*));
     d->count--;
     d->generation++;
+    if (c->rents != NULL)
+        d->rent_generation++;
+    destroy_rents(c);
     claim_release(c);
 }
 
-/* The claim with this id; under g_lock */
+/* The claim with this id - on a display, or an application's in a rent; under g_lock */
 static claim_t* find_claim(uint32_t id)
 {
     for (struct libdmview_display* d = g_displays; d != NULL; d = d->next)
@@ -141,9 +205,67 @@ static claim_t* find_claim(uint32_t id)
         {
             if (d->claims[i]->id == id)
                 return d->claims[i];
+            for (rent_t* r = d->claims[i]->rents; r != NULL; r = r->next)
+            {
+                if (r->child != NULL && r->child->id == id)
+                    return r->child;
+            }
         }
     }
     return NULL;
+}
+
+/* The rent with this id, whose claim is on a display; under g_lock */
+static rent_t* find_rent(uint32_t id)
+{
+    for (struct libdmview_display* d = g_displays; d != NULL; d = d->next)
+    {
+        for (uint32_t i = 0; i < d->count; i++)
+        {
+            for (rent_t* r = d->claims[i]->rents; r != NULL; r = r->next)
+            {
+                if (r->id == id)
+                    return r;
+            }
+        }
+    }
+    return NULL;
+}
+
+/* The rent an application's claim is in; under g_lock */
+static rent_t* find_rent_of(uint32_t claim)
+{
+    rent_t* r = NULL;
+    for (struct libdmview_display* d = g_displays; d != NULL && r == NULL; d = d->next)
+    {
+        for (uint32_t i = 0; i < d->count && r == NULL; i++)
+        {
+            for (rent_t* o = d->claims[i]->rents; o != NULL; o = o->next)
+            {
+                if (o->child != NULL && o->child->id == claim)
+                {
+                    r = o;
+                    break;
+                }
+            }
+        }
+    }
+    return r;
+}
+
+/* The application is gone from the rent (it released the claim, ended, or the rent was taken back): the owner is told. Under g_lock */
+static void rent_drop_child(rent_t* r)
+{
+    claim_release(r->child);
+    r->child = NULL;
+    r->display->rent_generation++;
+    queue_event(r->owner, "rent.closed", (int32_t)r->id);
+}
+
+static bool rects_overlap(const libdmview_rect_t* a, const libdmview_rect_t* b)
+{
+    return (int32_t)a->x < (int32_t)b->x + b->w && (int32_t)b->x < (int32_t)a->x + a->w &&
+           (int32_t)a->y < (int32_t)b->y + b->h && (int32_t)b->y < (int32_t)a->y + a->h;
 }
 
 static prop_t* find_prop(claim_t* c, const char* name)
@@ -339,13 +461,21 @@ dmod_libdmview_api_declaration(1.0, uint32_t, _display_generation, ( libdmview_d
     return is_display(display) ? display->generation : 0;
 }
 
-/* Claims of processes that are gone; under g_lock */
+/* Claims of processes that are gone - and applications gone from the rents of the rest; under g_lock */
 static void drop_dead(struct libdmview_display* d)
 {
     for (uint32_t i = d->count; i > 0; i--)
     {
         if (dmosi_process_find_by_id(d->claims[i - 1U]->pid) == NULL)
+        {
             drop_claim(d, i - 1U);
+            continue;
+        }
+        for (rent_t* r = d->claims[i - 1U]->rents; r != NULL; r = r->next)
+        {
+            if (r->child != NULL && dmosi_process_find_by_id(r->child->pid) == NULL)
+                rent_drop_child(r);
+        }
     }
 }
 
@@ -379,6 +509,26 @@ dmod_libdmview_api_declaration(1.0, int, _display_view, ( libdmview_display_t di
     return ret;
 }
 
+/* The rent called "<display>/<rent>"; under g_lock */
+static rent_t* find_rent_by_name(const char* name)
+{
+    const char* slash = strrchr(name, '/');
+    if (slash == NULL || slash == name || slash[1] == '\0')
+        return NULL;
+    uint32_t id = 0;
+    for (const char* p = slash + 1; *p != '\0'; p++)
+    {
+        if (*p < '0' || *p > '9' || id > 0x0FFFFFFFu)
+            return NULL;
+        id = id * 10U + (uint32_t)(*p - '0');
+    }
+    rent_t* r = find_rent(id);
+    size_t length = (size_t)(slash - name);
+    if (r == NULL || strlen(r->display->name) != length || strncmp(r->display->name, name, length) != 0)
+        return NULL;
+    return r;
+}
+
 dmod_libdmview_api_declaration(1.0, int, _claim, ( const char* display, const char* view_path, uint32_t* claim ))
 {
     if (view_path == NULL || claim == NULL || g_lock == NULL)
@@ -406,6 +556,34 @@ dmod_libdmview_api_declaration(1.0, int, _claim, ( const char* display, const ch
             d = o;
         if (display != NULL && d != NULL)
             break;
+    }
+    if (d == NULL && display != NULL)
+    {
+        /* Not a display: the name of a rent, "<display>/<rent>" - the application takes the rectangle it was given */
+        rent_t* r = find_rent_by_name(display);
+        if (r != NULL)
+        {
+            int taken = 0;
+            if (r->child != NULL && dmosi_process_find_by_id(r->child->pid) == NULL)
+                rent_drop_child(r);                         /* (its application is gone) */
+            if (r->bound != 0 && r->bound != c->pid)
+                taken = -EACCES;
+            else if (r->child != NULL)
+                taken = -EBUSY;
+            if (taken == 0)
+            {
+                c->id = g_next_claim++;
+                c->rent = r->id;
+                r->child = c;
+                r->display->rent_generation++;
+                queue_event(r->owner, "rent.open", (int32_t)r->id);
+                *claim = c->id;
+            }
+            dmosi_mutex_unlock(g_lock);
+            if (taken != 0)
+                claim_free(c);
+            return taken;
+        }
     }
     int ret = (d != NULL) ? 0 : -ENODEV;
     if (ret == 0 && d->count == d->capacity)
@@ -439,6 +617,12 @@ dmod_libdmview_api_declaration(1.0, int, _release, ( uint32_t claim ))
         return -ENOENT;
     int ret = -ENOENT;
     dmosi_mutex_lock(g_lock);
+    rent_t* in_rent = find_rent_of(claim);
+    if (in_rent != NULL)
+    {
+        rent_drop_child(in_rent);               /* The application leaves its rent: the rent stays, empty */
+        ret = 0;
+    }
     for (struct libdmview_display* d = g_displays; d != NULL && ret != 0; d = d->next)
     {
         for (uint32_t i = 0; i < d->count; i++)
@@ -569,12 +753,9 @@ dmod_libdmview_api_declaration(1.0, int, _wait_event, ( uint32_t claim, libdmvie
 
 /* ---- The channel: the view's side (the service's thread) ---- */
 
-dmod_libdmview_api_declaration(1.0, int, _attach, ( libdmview_t view, libdmview_display_t display ))
+/* The view is the one of claim `c` (NULL: of none): its properties and events go through it. Under g_lock */
+static void attach_claim(struct libdmview* view, claim_t* c)
 {
-    if (view == NULL || view->magic != VIEW_MAGIC || !is_display(display))
-        return -EINVAL;
-    dmosi_mutex_lock(g_lock);
-    claim_t* c = (display->count > 0) ? display->claims[display->count - 1U] : NULL;
     view->claim = (c != NULL) ? c->id : 0;
     /* What the view holds is what the application reads - unless it set it meanwhile */
     for (uint32_t i = 0; c != NULL && i < view->var_count; i++)
@@ -591,6 +772,28 @@ dmod_libdmview_api_declaration(1.0, int, _attach, ( libdmview_t view, libdmview_
         else
             p->ival = view->ints[i];
     }
+}
+
+dmod_libdmview_api_declaration(1.0, int, _attach, ( libdmview_t view, libdmview_display_t display ))
+{
+    if (view == NULL || view->magic != VIEW_MAGIC || !is_display(display))
+        return -EINVAL;
+    dmosi_mutex_lock(g_lock);
+    claim_t* c = (display->count > 0) ? display->claims[display->count - 1U] : NULL;
+    attach_claim(view, c);
+    dmosi_mutex_unlock(g_lock);
+    return (c != NULL) ? 0 : -ENOENT;
+}
+
+dmod_libdmview_api_declaration(1.0, int, _rent_attach, ( libdmview_t view, uint32_t claim ))
+{
+    if (view == NULL || view->magic != VIEW_MAGIC || g_lock == NULL)
+        return -EINVAL;
+    dmosi_mutex_lock(g_lock);
+    claim_t* c = find_claim(claim);
+    if (c != NULL && c->rent == 0)
+        c = NULL;                               /* (a claim on a display: that is libdmview_attach()) */
+    attach_claim(view, c);
     dmosi_mutex_unlock(g_lock);
     return (c != NULL) ? 0 : -ENOENT;
 }
@@ -622,26 +825,7 @@ void claims_emit(struct libdmview* v, const char* name, int32_t value)
     if (v->claim == 0 || g_lock == NULL)
         return;
     dmosi_mutex_lock(g_lock);
-    claim_t* c = find_claim(v->claim);
-    if (c != NULL)
-    {
-        bool full = c->count == LIBDMVIEW_EVENT_QUEUE;
-        if (full)
-        {
-            /* The oldest goes - its post stays for the new one */
-            c->first = (c->first + 1U) % LIBDMVIEW_EVENT_QUEUE;
-            c->count--;
-            c->dropped++;
-        }
-        libdmview_event_t* e = &c->events[(c->first + c->count) % LIBDMVIEW_EVENT_QUEUE];
-        strncpy(e->name, name, sizeof(e->name) - 1U);
-        e->name[sizeof(e->name) - 1U] = '\0';
-        e->value = value;
-        e->dropped = 0;
-        c->count++;
-        if (!full)
-            (void)dmosi_semaphore_post(c->ready, 1);
-    }
+    queue_event(find_claim(v->claim), name, value);
     dmosi_mutex_unlock(g_lock);
 }
 
@@ -708,4 +892,278 @@ void claims_apply(struct libdmview* v)
         if (sval != NULL)
             Dmod_Free(sval);
     }
+}
+
+/* ---- Screen rent ---- */
+
+/* The rent, if the calling process is the one of its owner: 0, else -ENOENT / -EPERM. Under g_lock */
+static int owned_rent(uint32_t id, rent_t** out)
+{
+    rent_t* r = find_rent(id);
+    if (r == NULL)
+        return -ENOENT;
+    if (r->owner->pid != current_pid())
+        return -EPERM;
+    *out = r;
+    return 0;
+}
+
+/* Does `rect` overlap another rent of the owner of `except`'s (or of `owner`, when `except` is NULL)? Under g_lock */
+static bool rect_taken(const claim_t* owner, const rent_t* except, const libdmview_rect_t* rect)
+{
+    for (const rent_t* o = owner->rents; o != NULL; o = o->next)
+    {
+        if (o != except && rects_overlap(&o->rect, rect))
+            return true;
+    }
+    return false;
+}
+
+static int32_t size_word(const libdmview_rect_t* rect)
+{
+    return (int32_t)(((uint32_t)rect->w << 16) | rect->h);
+}
+
+dmod_libdmview_api_declaration(1.0, int, _rent_create, ( uint32_t claim, const libdmview_rect_t* rect, uint32_t* rent ))
+{
+    if (rect == NULL || rent == NULL || rect->w == 0 || rect->h == 0 || g_lock == NULL)
+        return -EINVAL;
+    rent_t* r = Dmod_Malloc(sizeof(*r));
+    if (r == NULL)
+        return -ENOMEM;
+    memset(r, 0, sizeof(*r));
+
+    dmosi_mutex_lock(g_lock);
+    claim_t* owner = NULL;
+    struct libdmview_display* display = NULL;
+    for (struct libdmview_display* d = g_displays; d != NULL && owner == NULL; d = d->next)
+    {
+        for (uint32_t i = 0; i < d->count; i++)
+        {
+            if (d->claims[i]->id == claim)
+            {
+                owner = d->claims[i];
+                display = d;
+                break;
+            }
+        }
+    }
+    int ret = 0;
+    if (owner == NULL)
+        ret = (find_claim(claim) != NULL) ? -EINVAL : -ENOENT;     /* (an application in a rent does not rent further) */
+    else if (owner->pid != current_pid())
+        ret = -EPERM;
+    else if (rect_taken(owner, NULL, rect))
+        ret = -EEXIST;
+    if (ret == 0)
+    {
+        r->id = g_next_rent++;
+        r->display = display;
+        r->owner = owner;
+        r->rect = *rect;
+        r->visible = true;
+        rent_t** tail = &owner->rents;
+        while (*tail != NULL)
+            tail = &(*tail)->next;
+        *tail = r;
+        display->rent_generation++;
+        *rent = r->id;
+    }
+    dmosi_mutex_unlock(g_lock);
+    if (ret != 0)
+        Dmod_Free(r);
+    return ret;
+}
+
+dmod_libdmview_api_declaration(1.0, int, _rent_name, ( uint32_t rent, char* name, size_t size ))
+{
+    if (name == NULL || size == 0 || g_lock == NULL)
+        return -EINVAL;
+    dmosi_mutex_lock(g_lock);
+    rent_t* r = find_rent(rent);
+    int ret = (r == NULL) ? -ENOENT : 0;
+    if (r != NULL)
+    {
+        int n = Dmod_SnPrintf(name, size, "%s/%u", r->display->name, (unsigned)r->id);
+        if (n < 0 || (size_t)n >= size)
+            ret = -ERANGE;
+    }
+    dmosi_mutex_unlock(g_lock);
+    return ret;
+}
+
+dmod_libdmview_api_declaration(1.0, int, _rent_bind, ( uint32_t rent, uint32_t pid ))
+{
+    if (g_lock == NULL)
+        return -ENOENT;
+    dmosi_mutex_lock(g_lock);
+    rent_t* r = NULL;
+    int ret = owned_rent(rent, &r);
+    if (ret == 0)
+        r->bound = (dmosi_process_id_t)pid;
+    dmosi_mutex_unlock(g_lock);
+    return ret;
+}
+
+dmod_libdmview_api_declaration(1.0, int, _rent_set_rect, ( uint32_t rent, const libdmview_rect_t* rect ))
+{
+    if (rect == NULL || rect->w == 0 || rect->h == 0 || g_lock == NULL)
+        return -EINVAL;
+    dmosi_mutex_lock(g_lock);
+    rent_t* r = NULL;
+    int ret = owned_rent(rent, &r);
+    if (ret == 0 && rect_taken(r->owner, r, rect))
+        ret = -EEXIST;
+    if (ret == 0)
+    {
+        bool resized = r->rect.w != rect->w || r->rect.h != rect->h;
+        r->rect = *rect;
+        r->display->rent_generation++;
+        if (resized && r->child != NULL)
+            queue_event(r->child, "rent.size", size_word(rect));
+    }
+    dmosi_mutex_unlock(g_lock);
+    return ret;
+}
+
+dmod_libdmview_api_declaration(1.0, int, _rent_set_visible, ( uint32_t rent, bool visible ))
+{
+    if (g_lock == NULL)
+        return -ENOENT;
+    dmosi_mutex_lock(g_lock);
+    rent_t* r = NULL;
+    int ret = owned_rent(rent, &r);
+    if (ret == 0 && r->visible != visible)
+    {
+        r->visible = visible;
+        r->display->rent_generation++;
+        queue_event(r->child, "rent.visible", visible ? 1 : 0);
+    }
+    dmosi_mutex_unlock(g_lock);
+    return ret;
+}
+
+dmod_libdmview_api_declaration(1.0, int, _rent_set_focus, ( uint32_t rent, bool focus ))
+{
+    if (g_lock == NULL)
+        return -ENOENT;
+    dmosi_mutex_lock(g_lock);
+    rent_t* r = NULL;
+    int ret = owned_rent(rent, &r);
+    if (ret == 0)
+    {
+        if (focus)
+        {
+            for (rent_t* o = r->owner->rents; o != NULL; o = o->next)
+            {
+                if (o != r && o->focus)
+                {
+                    o->focus = false;
+                    queue_event(o->child, "rent.focus", 0);
+                }
+            }
+        }
+        if (r->focus != focus)
+        {
+            r->focus = focus;
+            queue_event(r->child, "rent.focus", focus ? 1 : 0);
+        }
+        r->display->rent_generation++;
+    }
+    dmosi_mutex_unlock(g_lock);
+    return ret;
+}
+
+dmod_libdmview_api_declaration(1.0, int, _rent_set_escape, ( uint32_t rent, uint16_t key ))
+{
+    if (g_lock == NULL)
+        return -ENOENT;
+    dmosi_mutex_lock(g_lock);
+    rent_t* r = NULL;
+    int ret = owned_rent(rent, &r);
+    if (ret == 0)
+    {
+        r->escape = key;
+        r->display->rent_generation++;
+    }
+    dmosi_mutex_unlock(g_lock);
+    return ret;
+}
+
+dmod_libdmview_api_declaration(1.0, int, _rent_release, ( uint32_t rent ))
+{
+    if (g_lock == NULL)
+        return -ENOENT;
+    dmosi_mutex_lock(g_lock);
+    rent_t* r = NULL;
+    int ret = owned_rent(rent, &r);
+    if (ret == 0)
+    {
+        for (rent_t** p = &r->owner->rents; *p != NULL; p = &(*p)->next)
+        {
+            if (*p == r)
+            {
+                *p = r->next;
+                break;
+            }
+        }
+        r->display->rent_generation++;
+        if (r->child != NULL)
+            claim_release(r->child);        /* The application: -ENOENT from now on */
+        Dmod_Free(r);
+    }
+    dmosi_mutex_unlock(g_lock);
+    return ret;
+}
+
+dmod_libdmview_api_declaration(1.0, int, _rent_get_size, ( uint32_t claim, uint16_t* width, uint16_t* height ))
+{
+    if (width == NULL || height == NULL || g_lock == NULL)
+        return -EINVAL;
+    dmosi_mutex_lock(g_lock);
+    rent_t* r = find_rent_of(claim);
+    if (r != NULL)
+    {
+        *width = r->rect.w;
+        *height = r->rect.h;
+    }
+    dmosi_mutex_unlock(g_lock);
+    return (r != NULL) ? 0 : -ENOENT;
+}
+
+dmod_libdmview_api_declaration(1.0, uint32_t, _display_rent_generation, ( libdmview_display_t display ))
+{
+    return is_display(display) ? display->rent_generation : 0;
+}
+
+dmod_libdmview_api_declaration(1.0, int, _display_rents, ( libdmview_display_t display, uint32_t* generation, libdmview_rent_info_t* out, uint32_t max, uint32_t* count ))
+{
+    if (!is_display(display) || count == NULL || (out == NULL && max != 0) || g_lock == NULL)
+        return -EINVAL;
+    dmosi_mutex_lock(g_lock);
+    drop_dead(display);
+    if (generation != NULL)
+        *generation = display->rent_generation;
+    uint32_t n = 0;
+    if (display->count > 0)
+    {
+        for (const rent_t* r = display->claims[display->count - 1U]->rents; r != NULL && n < max; r = r->next)
+        {
+            libdmview_rent_info_t* info = &out[n++];
+            memset(info, 0, sizeof(*info));
+            info->id = r->id;
+            info->rect = r->rect;
+            info->visible = r->visible;
+            info->focus = r->focus;
+            info->escape = r->escape;
+            if (r->child != NULL && strlen(r->child->path) < sizeof(info->path))
+            {
+                info->claim = r->child->id;
+                strcpy(info->path, r->child->path);
+            }
+        }
+    }
+    *count = n;
+    dmosi_mutex_unlock(g_lock);
+    return 0;
 }

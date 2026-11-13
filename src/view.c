@@ -611,6 +611,14 @@ dmod_libdmview_api_declaration(1.0, int, _get_size, ( libdmview_t view, uint16_t
     return 0;
 }
 
+dmod_libdmview_api_declaration(1.0, void, _invalidate_rect, ( libdmview_t view, const libdmview_rect_t* area ))
+{
+    if (view == NULL || view->magic != VIEW_MAGIC || area == NULL || area->w == 0 || area->h == 0)
+        return;
+    rect_t r = { area->x, area->y, area->x + area->w, area->y + area->h };
+    rect_add(&view->damage, &r);
+}
+
 dmod_libdmview_api_declaration(1.0, void, _invalidate, ( libdmview_t view ))
 {
     if (is_view(view))
