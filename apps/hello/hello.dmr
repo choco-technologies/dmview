@@ -1,0 +1,23 @@
+# DMOD Resource File for hello (a small application that lives in a rent)
+# This file specifies where resources should be installed
+
+# === Core Module ===
+dmf=./${module}.dmf => ${destination}/${module}.dmf [origin=${dmf_dir}/${module}.dmf]
+dmfc=./${module}.dmfc => ${destination}/${module}.dmfc [origin=${build_dir}/dmfc/${module}.dmfc]
+dmd=./${module}.dmd => ${destination}/${module}.dmd [origin=${dmf_dir}/${module}.dmd]
+version=./${module}_version.txt => ${destination}/${module}_version.txt [origin=${dmf_dir}/${module}_version.txt]
+
+# === The view (converted from apps/hello/views) ===
+views=./views => ${views_dir} [origin=${views_dir}]
+
+# === Icons (converted from apps/hello/icons): the default one and a small one, and the e-paper's own of both ===
+icon=./icon.dmvi => ${icons_dir}/${module}.dmvi [origin=${icons_dir}/${module}.dmvi]
+icon=./icon-small.dmvi => ${icons_dir}/${module}.dmvi [variant=small] [origin=${icons_dir}/${module}.dmvi]
+icon=./icon-epaper-240x320.dmvi => ${icons_dir}/${module}.dmvi [screen=epaper-240x320] [origin=${icons_dir}/epaper-240x320/${module}.dmvi]
+icon=./icon-small-epaper-240x320.dmvi => ${icons_dir}/${module}.dmvi [variant=small] [screen=epaper-240x320] [origin=${icons_dir}/epaper-240x320/${module}.dmvi]
+
+# === License ===
+license=./LICENSE => ${destination}/${module}/LICENSE [origin=${repo_dir}/LICENSE]
+
+# Adding itself
+dmr=./${module}.dmr => ${destination}/${module}/${module}.dmr [origin=${repo_dir}/apps/hello/${module}.dmr]
