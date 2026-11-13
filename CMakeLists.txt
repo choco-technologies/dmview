@@ -57,6 +57,7 @@ dmod_add_library(${DMOD_MODULE_NAME} ${DMOD_MODULE_VERSION}
     src/image.c
     src/font.c
     src/claims.c
+    src/rents.c
     src/validate.c
 )
 

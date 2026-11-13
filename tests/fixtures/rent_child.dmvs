@@ -1,0 +1,23 @@
+; The view of an application in a rent: red over the whole of what it is given ($view.w x $view.h), a white mark of 2x2 in its
+; corner, and where it was clicked (relative to itself) is told to its application
+.view   rent_child
+.entry  draw
+
+.var    $clicks, int, 0
+
+draw:
+        BOX     @all, 0, 0, $view.w, $view.h, OPAQUE
+        ON      CLICK, clicked
+        FILL    #FF0000
+        BOX     @mark, 0, 0, 2, 2
+        FILL    #FFFFFF
+        END
+        END
+        RET
+
+clicked:
+        ADD     $clicks, 1
+        EMIT    "child_click", $clicks
+        EMIT    "child_x", $ev.x
+        EMIT    "child_y", $ev.y
+        RET

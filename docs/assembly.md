@@ -348,7 +348,7 @@ Read-only, always available:
 | `$ev.cx`, `$ev.cy` | Center between the two contacts of a gesture, relative to the box |
 | `$ev.key` | Key code of `KEY` (button index of `dmdrvi_input_state_t::buttons` for now) |
 | `$ev.button` | Mouse/device button of the event (`DMDRVI_INPUT_BUTTON_*` bit) |
-| `$view.w`, `$view.h` | Size of the screen |
+| `$view.w`, `$view.h` | Size of the surface the view draws into: the screen - or, for an application in a [rent](rent.md), the part of it that was rented (a view that lays itself out by them adapts to what it is given) |
 | `$time` | Milliseconds since the view was shown - never a draw dependency, use `.timer` to animate |
 
 Event variables are 0 outside a handler. `POINTER_CONTACT` and

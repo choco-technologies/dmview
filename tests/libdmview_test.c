@@ -1083,6 +1083,433 @@ DMOD_TEST_STEP(libdmview_keys_go_to_the_application)
     libdmview_display_unregister(display);
 }
 
+/* ---- Screen rent ---- */
+
+static bool event_is(uint32_t claim, const char* name, int32_t value)
+{
+    libdmview_event_t ev;
+    if (libdmview_wait_event(claim, &ev, 0) != 0)
+    {
+        Dmod_Printf("    no event, expected %s %d\n", name, (int)value);
+        return false;
+    }
+    if (strcmp(ev.name, name) != 0 || ev.value != value)
+    {
+        Dmod_Printf("    event %s %d, expected %s %d\n", ev.name, (int)ev.value, name, (int)value);
+        return false;
+    }
+    return true;
+}
+
+/* (strstr is not in a module) */
+static bool path_ends(const char* path, const char* name)
+{
+    size_t p = strlen(path), n = strlen(name);
+    return p >= n && strcmp(path + p - n, name) == 0;
+}
+
+static bool no_event(uint32_t claim)
+{
+    libdmview_event_t ev;
+    int ret = libdmview_wait_event(claim, &ev, 0);
+    if (ret != -ETIMEDOUT)
+        Dmod_Printf("    event %s %d (%d), expected none\n", ev.name, (int)ev.value, ret);
+    return ret == -ETIMEDOUT;
+}
+
+/* A display with an owner (its claim, rent_owner.dmv) - and its view opened and attached, as its service does */
+typedef struct
+{
+    libdmview_display_t display;
+    uint32_t            owner;
+} owner_t;
+
+static bool owner_start(owner_t* o, const char* name)
+{
+    memset(o, 0, sizeof(*o));
+    o->display = libdmview_display_register(name);
+    if (o->display == NULL || libdmview_claim(name, FIXTURE("rent_owner.dmv"), &o->owner) != 0 ||
+        !open_fixture(FIXTURE("rent_owner.dmv")) || libdmview_attach(g_view, o->display) != 0)
+        return false;
+    return libdmview_render(g_view, &g_s32, NULL) == 1;
+}
+
+/* A rent the application of `view` takes: its claim */
+static bool rent_take(const owner_t* o, const libdmview_rect_t* rect, uint32_t* rent, uint32_t* claim)
+{
+    char name[32];
+    return libdmview_rent_create(o->owner, rect, rent) == 0 && libdmview_rent_name(*rent, name, sizeof(name)) == 0 &&
+           libdmview_claim(name, FIXTURE("rent_child.dmv"), claim) == 0;
+}
+
+/* A rent is taken by name; only one application is in it, and only the one it is bound to; the owner learns what comes and goes */
+DMOD_TEST_STEP(libdmview_rents_are_taken_by_name)
+{
+    owner_t o;
+    char name[32], expected[32];
+    uint32_t rent = 0, other = 0, child = 0, again = 0;
+    int32_t n = 0;
+    uint16_t w = 0, h = 0;
+    char path[256];
+    const libdmview_rect_t rect = { 8, 8, 32, 24 };
+    const libdmview_rect_t overlapping = { 30, 20, 10, 10 };
+    const libdmview_rect_t empty = { 0, 0, 0, 5 };
+
+    DMOD_TEST_EXPECT_TRUE(owner_start(&o, "rentd"));
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_create(o.owner, &rect, &rent), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_create(o.owner, &overlapping, &other), -EEXIST);     /* rents do not overlap */
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_create(o.owner, &empty, &other), -EINVAL);
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_create(o.owner + 1000u, &rect, &other), -ENOENT);
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_create(o.owner, NULL, &other), -EINVAL);
+
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_name(rent, name, sizeof(name)), 0);
+    Dmod_SnPrintf(expected, sizeof(expected), "rentd/%u", (unsigned)rent);
+    DMOD_TEST_EXPECT_EQ(strcmp(name, expected), 0);
+    char cut[4];
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_name(rent, cut, sizeof(cut)), -ERANGE);               /* (cut) */
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_name(rent + 1000u, name, sizeof(name)), -ENOENT);
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_get_size(o.owner, &w, &h), -ENOENT);                 /* the owner is not in a rent */
+
+    /* Not a display, not a rent that exists */
+    DMOD_TEST_EXPECT_EQ(libdmview_claim("rentd/999", FIXTURE("rent_child.dmv"), &child), -ENODEV);
+    DMOD_TEST_EXPECT_EQ(libdmview_claim("nowhere/1", FIXTURE("rent_child.dmv"), &child), -ENODEV);
+    DMOD_TEST_EXPECT_EQ(libdmview_claim("rentd/x", FIXTURE("rent_child.dmv"), &child), -ENODEV);
+    DMOD_TEST_EXPECT_TRUE(no_event(o.owner));
+
+    /* Bound to a process that is not this one */
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_bind(rent, 0x7FFFFFF0u), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_claim(name, FIXTURE("rent_child.dmv"), &child), -EACCES);
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_bind(rent, 0), 0);
+
+    DMOD_TEST_EXPECT_EQ(libdmview_claim(name, FIXTURE("rent_child.dmv"), &child), 0);
+    DMOD_TEST_EXPECT_TRUE(event_is(o.owner, "rent.open", (int32_t)rent));
+    DMOD_TEST_EXPECT_EQ(libdmview_claim(name, FIXTURE("rent_child.dmv"), &again), -EBUSY);   /* taken */
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_get_size(child, &w, &h), 0);
+    DMOD_TEST_EXPECT_EQ(w, 32);
+    DMOD_TEST_EXPECT_EQ(h, 24);
+
+    /* Its claim is no display's: the display still shows the owner's view, and the channel is the usual one */
+    DMOD_TEST_EXPECT_EQ(top_of(o.display, path, sizeof(path)), 0);
+    DMOD_TEST_EXPECT_TRUE(path_ends(path, "rent_owner.dmv"));
+    DMOD_TEST_EXPECT_EQ(libdmview_prop_get_int(child, "nope", &n), -ENOENT);
+
+    /* The owner moves and resizes it: the application learns the size, not a move */
+    const libdmview_rect_t moved = { 10, 10, 32, 24 };
+    const libdmview_rect_t bigger = { 10, 10, 40, 30 };
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_rect(rent, &moved), 0);
+    DMOD_TEST_EXPECT_TRUE(no_event(child));
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_rect(rent, &bigger), 0);
+    DMOD_TEST_EXPECT_TRUE(event_is(child, "rent.size", (40 << 16) | 30));
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_get_size(child, &w, &h), 0);
+    DMOD_TEST_EXPECT_EQ(w, 40);
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_rect(rent, &empty), -EINVAL);
+
+    /* Shown or not, the focus: told to the application, one rent has it */
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_visible(rent, false), 0);
+    DMOD_TEST_EXPECT_TRUE(event_is(child, "rent.visible", 0));
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_visible(rent, false), 0);                        /* (no change, no event) */
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_visible(rent, true), 0);
+    DMOD_TEST_EXPECT_TRUE(event_is(child, "rent.visible", 1));
+    const libdmview_rect_t second = { 0, 40, 10, 8 };
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_create(o.owner, &second, &other), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_focus(rent, true), 0);
+    DMOD_TEST_EXPECT_TRUE(event_is(child, "rent.focus", 1));
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_focus(other, true), 0);                          /* the focus moves */
+    DMOD_TEST_EXPECT_TRUE(event_is(child, "rent.focus", 0));
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_escape(rent, 0x29), 0);
+
+    /* The application leaves: the owner is told, the rent stays and can be taken again */
+    DMOD_TEST_EXPECT_EQ(libdmview_release(child), 0);
+    DMOD_TEST_EXPECT_TRUE(event_is(o.owner, "rent.closed", (int32_t)rent));
+    DMOD_TEST_EXPECT_EQ(libdmview_release(child), -ENOENT);
+    DMOD_TEST_EXPECT_EQ(libdmview_claim(name, FIXTURE("rent_child.dmv"), &child), 0);
+    DMOD_TEST_EXPECT_TRUE(event_is(o.owner, "rent.open", (int32_t)rent));
+
+    /* The owner takes it back: the application's claim is gone with it */
+    libdmview_event_t ev;
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_release(rent), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_release(rent), -ENOENT);
+    DMOD_TEST_EXPECT_EQ(libdmview_wait_event(child, &ev, 0), -ENOENT);
+    DMOD_TEST_EXPECT_EQ(libdmview_claim(name, FIXTURE("rent_child.dmv"), &again), -ENODEV);
+
+    /* ... and so are all of them with the claim that rented them */
+    DMOD_TEST_EXPECT_EQ(libdmview_release(o.owner), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_visible(other, true), -ENOENT);
+    libdmview_display_unregister(o.display);
+}
+
+/* An owner that is not the top claim, or a claim in a rent, rents nothing; a rent is for the claim on top */
+DMOD_TEST_STEP(libdmview_rents_belong_to_the_claim_on_top)
+{
+    owner_t o;
+    uint32_t rent = 0, child = 0, second = 0, other = 0, count_generation = 0;
+    uint32_t count = 99;
+    libdmview_rent_info_t infos[LIBDMVIEW_RENTS_MAX];
+    const libdmview_rect_t rect = { 4, 4, 20, 10 };
+
+    DMOD_TEST_EXPECT_TRUE(owner_start(&o, "tops"));
+    DMOD_TEST_EXPECT_TRUE(rent_take(&o, &rect, &rent, &child));
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_create(child, &rect, &other), -EINVAL);              /* not further */
+
+    DMOD_TEST_EXPECT_EQ(libdmview_display_rents(o.display, &count_generation, infos, LIBDMVIEW_RENTS_MAX, &count), 0);
+    DMOD_TEST_EXPECT_EQ(count, 1u);
+    DMOD_TEST_EXPECT_EQ(infos[0].id, rent);
+    DMOD_TEST_EXPECT_EQ(infos[0].claim, child);
+    DMOD_TEST_EXPECT_TRUE(rect_is(&infos[0].rect, 4, 4, 20, 10));
+    DMOD_TEST_EXPECT_TRUE(infos[0].visible);
+    DMOD_TEST_EXPECT_TRUE(!infos[0].focus);
+    DMOD_TEST_EXPECT_TRUE(path_ends(infos[0].path, "rent_child.dmv"));
+    DMOD_TEST_EXPECT_EQ(libdmview_display_rents(o.display, NULL, infos, 0, &count), 0);      /* room for none */
+    DMOD_TEST_EXPECT_EQ(count, 0u);
+    uint32_t seen = libdmview_display_rent_generation(o.display);
+
+    /* Another claim on top: the display shows its view, and its (no) rents */
+    DMOD_TEST_EXPECT_EQ(libdmview_claim("tops", FIXTURE("rent_owner.dmv"), &second), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_display_rents(o.display, NULL, infos, LIBDMVIEW_RENTS_MAX, &count), 0);
+    DMOD_TEST_EXPECT_EQ(count, 0u);
+    DMOD_TEST_EXPECT_EQ(libdmview_release(second), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_display_rents(o.display, NULL, infos, LIBDMVIEW_RENTS_MAX, &count), 0);
+    DMOD_TEST_EXPECT_EQ(count, 1u);
+    DMOD_TEST_EXPECT_EQ(libdmview_display_rent_generation(o.display), seen);                 /* (nothing of the rents changed) */
+
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_focus(rent, true), 0);
+    DMOD_TEST_EXPECT_NE(libdmview_display_rent_generation(o.display), seen);                 /* a service sees a change */
+    DMOD_TEST_EXPECT_EQ(libdmview_display_rents(o.display, NULL, infos, LIBDMVIEW_RENTS_MAX, &count), 0);
+    DMOD_TEST_EXPECT_TRUE(infos[0].focus);
+
+    DMOD_TEST_EXPECT_EQ(libdmview_display_rents(NULL, NULL, infos, 1, &count), -EINVAL);
+    libdmview_display_unregister(o.display);
+}
+
+/* The service draws a rented view into its rectangle, as a surface of its size, over the owner's view */
+DMOD_TEST_STEP(libdmview_composes_a_rented_view)
+{
+    owner_t o;
+    uint32_t rent = 0, child = 0;
+    libdmview_rect_t changed, vacated;
+    const libdmview_rect_t rect = { 8, 8, 32, 24 };
+
+    DMOD_TEST_EXPECT_TRUE(owner_start(&o, "compose"));
+    DMOD_TEST_EXPECT_EQ(px(0, 0), 0xFF0000FFu);                                              /* the owner: blue */
+    DMOD_TEST_EXPECT_TRUE(rent_take(&o, &rect, &rent, &child));
+
+    libdmview_rents_t rents = libdmview_rents_create(o.display);
+    DMOD_TEST_EXPECT_NOT_NULL(rents);
+    DMOD_TEST_EXPECT_TRUE(libdmview_rents_sync(rents, &vacated));
+    DMOD_TEST_EXPECT_EQ(vacated.w, 0);
+    DMOD_TEST_EXPECT_TRUE(!libdmview_rents_sync(rents, &vacated));                           /* (nothing new) */
+
+    DMOD_TEST_EXPECT_EQ(libdmview_rents_render(rents, &g_s32, &changed), 1);
+    DMOD_TEST_EXPECT_TRUE(rect_is(&changed, 8, 8, 32, 24));                                  /* all of it, nothing else */
+    DMOD_TEST_EXPECT_EQ(px(20, 20), 0xFFFF0000u);                                            /* red inside */
+    DMOD_TEST_EXPECT_EQ(px(39, 31), 0xFFFF0000u);                                            /* its last pixel */
+    DMOD_TEST_EXPECT_EQ(px(8, 8), 0xFFFFFFFFu);                                              /* its mark: its own (0, 0) is the rent's */
+    DMOD_TEST_EXPECT_EQ(px(9, 9), 0xFFFFFFFFu);
+    DMOD_TEST_EXPECT_EQ(px(10, 10), 0xFFFF0000u);
+    DMOD_TEST_EXPECT_EQ(px(7, 20), 0xFF0000FFu);                                             /* blue around it */
+    DMOD_TEST_EXPECT_EQ(px(40, 20), 0xFF0000FFu);
+    DMOD_TEST_EXPECT_EQ(px(20, 7), 0xFF0000FFu);
+    DMOD_TEST_EXPECT_EQ(px(20, 32), 0xFF0000FFu);
+    DMOD_TEST_EXPECT_EQ(libdmview_rents_render(rents, &g_s32, &changed), 0);                 /* nothing changed */
+    DMOD_TEST_EXPECT_EQ(changed.w, 0);
+
+    /* The owner draws over it (all of its view): what is the rent's is drawn again */
+    libdmview_invalidate(g_view);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, &changed), 1);
+    DMOD_TEST_EXPECT_EQ(px(20, 20), 0xFF0000FFu);
+    libdmview_rents_damage(rents, &changed);
+    DMOD_TEST_EXPECT_EQ(libdmview_rents_render(rents, &g_s32, &changed), 1);
+    DMOD_TEST_EXPECT_TRUE(rect_is(&changed, 8, 8, 32, 24));
+    DMOD_TEST_EXPECT_EQ(px(20, 20), 0xFFFF0000u);
+
+    /* ... a part of it only: only that part of the rent */
+    const libdmview_rect_t part = { 0, 0, 20, 12 };
+    libdmview_invalidate_rect(g_view, &part);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, &changed), 1);
+    DMOD_TEST_EXPECT_TRUE(rect_is(&changed, 0, 0, 20, 12));
+    DMOD_TEST_EXPECT_EQ(px(15, 10), 0xFF0000FFu);                                            /* the owner's blue over the corner */
+    libdmview_rents_damage(rents, &changed);
+    DMOD_TEST_EXPECT_EQ(libdmview_rents_render(rents, &g_s32, &changed), 1);
+    DMOD_TEST_EXPECT_TRUE(rect_is(&changed, 8, 8, 12, 4));                                   /* where the two meet */
+    DMOD_TEST_EXPECT_EQ(px(15, 10), 0xFFFF0000u);
+    DMOD_TEST_EXPECT_EQ(px(5, 5), 0xFF0000FFu);
+
+    /* Smaller: the application draws its new size ($view.w), the owner draws what it left */
+    const libdmview_rect_t smaller = { 8, 8, 16, 12 };
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_rect(rent, &smaller), 0);
+    DMOD_TEST_EXPECT_TRUE(libdmview_rents_sync(rents, &vacated));
+    DMOD_TEST_EXPECT_TRUE(rect_is(&vacated, 8, 8, 32, 24));                                  /* (it was bigger: all that was) */
+    libdmview_invalidate_rect(g_view, &vacated);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, &changed), 1);
+    libdmview_rents_damage(rents, &changed);
+    DMOD_TEST_EXPECT_EQ(libdmview_rents_render(rents, &g_s32, &changed), 1);
+    DMOD_TEST_EXPECT_EQ(px(20, 16), 0xFFFF0000u);                                            /* 8 + 16 = 24: inside is up to 23 */
+    DMOD_TEST_EXPECT_EQ(px(23, 19), 0xFFFF0000u);
+    DMOD_TEST_EXPECT_EQ(px(24, 19), 0xFF0000FFu);
+    DMOD_TEST_EXPECT_EQ(px(23, 20), 0xFF0000FFu);
+    DMOD_TEST_EXPECT_EQ(px(39, 31), 0xFF0000FFu);
+
+    /* Not shown: it is the owner's again, and it is not drawn */
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_visible(rent, false), 0);
+    DMOD_TEST_EXPECT_TRUE(libdmview_rents_sync(rents, &vacated));
+    DMOD_TEST_EXPECT_TRUE(rect_is(&vacated, 8, 8, 16, 12));
+    libdmview_invalidate_rect(g_view, &vacated);
+    DMOD_TEST_EXPECT_EQ(libdmview_render(g_view, &g_s32, &changed), 1);
+    libdmview_rents_damage(rents, &changed);
+    DMOD_TEST_EXPECT_EQ(libdmview_rents_render(rents, &g_s32, &changed), 0);
+    DMOD_TEST_EXPECT_EQ(px(10, 10), 0xFF0000FFu);
+    DMOD_TEST_EXPECT_EQ(libdmview_rents_update(rents, 1000), LIBDMVIEW_NO_DEADLINE);
+
+    /* Shown again: drawn again, all of it */
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_visible(rent, true), 0);
+    DMOD_TEST_EXPECT_TRUE(libdmview_rents_sync(rents, &vacated));
+    DMOD_TEST_EXPECT_EQ(vacated.w, 0);
+    libdmview_invalidate_rect(g_view, &smaller);
+    (void)libdmview_render(g_view, &g_s32, &changed);
+    libdmview_rents_damage(rents, &changed);
+    DMOD_TEST_EXPECT_EQ(libdmview_rents_render(rents, &g_s32, &changed), 1);
+    DMOD_TEST_EXPECT_EQ(px(10, 10), 0xFFFF0000u);
+
+    /* The application goes: the owner's view is its again */
+    DMOD_TEST_EXPECT_EQ(libdmview_release(child), 0);
+    DMOD_TEST_EXPECT_TRUE(libdmview_rents_sync(rents, &vacated));
+    DMOD_TEST_EXPECT_TRUE(rect_is(&vacated, 8, 8, 16, 12));
+    libdmview_rents_destroy(rents);
+    libdmview_display_unregister(o.display);
+}
+
+/* A rect that is partly off the surface is clipped, the application sees what is left */
+DMOD_TEST_STEP(libdmview_clips_a_rent_to_the_surface)
+{
+    owner_t o;
+    uint32_t rent = 0, child = 0;
+    libdmview_rect_t changed, vacated;
+    const libdmview_rect_t rect = { 50, 40, 32, 24 };            /* the surface is 64 x 48 */
+
+    DMOD_TEST_EXPECT_TRUE(owner_start(&o, "clip"));
+    DMOD_TEST_EXPECT_TRUE(rent_take(&o, &rect, &rent, &child));
+    libdmview_rents_t rents = libdmview_rents_create(o.display);
+    DMOD_TEST_EXPECT_NOT_NULL(rents);
+    DMOD_TEST_EXPECT_TRUE(libdmview_rents_sync(rents, &vacated));
+    DMOD_TEST_EXPECT_EQ(libdmview_rents_render(rents, &g_s32, &changed), 1);
+    DMOD_TEST_EXPECT_TRUE(rect_is(&changed, 50, 40, 14, 8));
+    DMOD_TEST_EXPECT_EQ(px(63, 47), 0xFFFF0000u);
+    DMOD_TEST_EXPECT_EQ(px(49, 47), 0xFF0000FFu);
+    /* Wholly off it: nothing */
+    const libdmview_rect_t off = { 70, 60, 5, 5 };
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_rect(rent, &off), 0);
+    DMOD_TEST_EXPECT_TRUE(libdmview_rents_sync(rents, &vacated));
+    DMOD_TEST_EXPECT_EQ(libdmview_rents_render(rents, &g_s32, &changed), 0);
+    libdmview_rents_destroy(rents);
+    libdmview_display_unregister(o.display);
+}
+
+/* A touch goes to the rent it began in - relative to the rent, until it is lifted - the rest to the owner */
+static void send_touch(libdmview_rents_t rents, int count, int x, int y, uint8_t event, uint32_t now)
+{
+    dmdrvi_input_state_t state;
+    memset(&state, 0, sizeof(state));
+    state.contact_count = (uint8_t)count;
+    state.contacts[0].x = (uint16_t)x;
+    state.contacts[0].y = (uint16_t)y;
+    state.contacts[0].event = event;
+    (void)libdmview_rents_input(rents, &state, now);
+    libdmview_input(g_view, &state, now);
+}
+
+DMOD_TEST_STEP(libdmview_routes_touches_to_the_rent_they_began_in)
+{
+    owner_t o;
+    uint32_t rent = 0, child = 0;
+    libdmview_rect_t vacated, changed;
+    const libdmview_rect_t rect = { 8, 8, 32, 24 };
+
+    DMOD_TEST_EXPECT_TRUE(owner_start(&o, "touch"));
+    DMOD_TEST_EXPECT_TRUE(rent_take(&o, &rect, &rent, &child));
+    DMOD_TEST_EXPECT_TRUE(event_is(o.owner, "rent.open", (int32_t)rent));
+    libdmview_rents_t rents = libdmview_rents_create(o.display);
+    DMOD_TEST_EXPECT_NOT_NULL(rents);
+    DMOD_TEST_EXPECT_TRUE(libdmview_rents_sync(rents, &vacated));
+    DMOD_TEST_EXPECT_EQ(libdmview_rents_render(rents, &g_s32, &changed), 1);
+
+    /* In the rent: the application's view gets it, at (14, 9) of its own - the owner's does not */
+    send_touch(rents, 1, 22, 17, DMDRVI_INPUT_CONTACT_DOWN, 100);
+    send_touch(rents, 1, 22, 17, DMDRVI_INPUT_CONTACT_UP, 120);
+    send_touch(rents, 0, 0, 0, DMDRVI_INPUT_CONTACT_MOVE, 140);
+    DMOD_TEST_EXPECT_TRUE(event_is(child, "child_click", 1));
+    DMOD_TEST_EXPECT_TRUE(event_is(child, "child_x", 14));
+    DMOD_TEST_EXPECT_TRUE(event_is(child, "child_y", 9));
+    DMOD_TEST_EXPECT_TRUE(no_event(o.owner));
+
+    /* Outside it: the owner's */
+    send_touch(rents, 1, 55, 40, DMDRVI_INPUT_CONTACT_DOWN, 200);
+    send_touch(rents, 1, 55, 40, DMDRVI_INPUT_CONTACT_UP, 220);
+    send_touch(rents, 0, 0, 0, DMDRVI_INPUT_CONTACT_MOVE, 240);
+    DMOD_TEST_EXPECT_TRUE(event_is(o.owner, "owner_click", 1));
+    DMOD_TEST_EXPECT_TRUE(no_event(child));
+
+    /* It began outside and moves into the rent: still the owner's (captured); it began inside and leaves: still the rent's */
+    send_touch(rents, 1, 55, 40, DMDRVI_INPUT_CONTACT_DOWN, 300);
+    send_touch(rents, 1, 20, 20, DMDRVI_INPUT_CONTACT_MOVE, 310);
+    send_touch(rents, 0, 0, 0, DMDRVI_INPUT_CONTACT_MOVE, 320);
+    DMOD_TEST_EXPECT_TRUE(no_event(child));
+    send_touch(rents, 1, 12, 12, DMDRVI_INPUT_CONTACT_DOWN, 400);
+    send_touch(rents, 1, 12, 12, DMDRVI_INPUT_CONTACT_MOVE, 410);
+    send_touch(rents, 0, 0, 0, DMDRVI_INPUT_CONTACT_MOVE, 420);                    /* lifted without an UP: told by its absence */
+    DMOD_TEST_EXPECT_TRUE(event_is(child, "child_click", 2));
+    DMOD_TEST_EXPECT_TRUE(event_is(child, "child_x", 4));
+    DMOD_TEST_EXPECT_TRUE(event_is(child, "child_y", 4));
+
+    /* What is not a contact is the owner's, and a rent that is not shown takes none */
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_visible(rent, false), 0);
+    DMOD_TEST_EXPECT_TRUE(event_is(child, "rent.visible", 0));
+    DMOD_TEST_EXPECT_TRUE(libdmview_rents_sync(rents, &vacated));
+    send_touch(rents, 1, 22, 17, DMDRVI_INPUT_CONTACT_DOWN, 500);
+    send_touch(rents, 1, 22, 17, DMDRVI_INPUT_CONTACT_UP, 520);
+    send_touch(rents, 0, 0, 0, DMDRVI_INPUT_CONTACT_MOVE, 540);
+    DMOD_TEST_EXPECT_TRUE(no_event(child));
+    DMOD_TEST_EXPECT_TRUE(event_is(o.owner, "owner_click", 2));
+
+    libdmview_rents_destroy(rents);
+    libdmview_display_unregister(o.display);
+}
+
+/* A key goes to the rent that has the focus - except its escape key - else to the owner */
+DMOD_TEST_STEP(libdmview_routes_keys_to_the_focused_rent)
+{
+    owner_t o;
+    uint32_t rent = 0, child = 0;
+    libdmview_rect_t vacated;
+    const libdmview_rect_t rect = { 8, 8, 32, 24 };
+
+    DMOD_TEST_EXPECT_TRUE(owner_start(&o, "keys2"));
+    DMOD_TEST_EXPECT_TRUE(rent_take(&o, &rect, &rent, &child));
+    libdmview_rents_t rents = libdmview_rents_create(o.display);
+    DMOD_TEST_EXPECT_NOT_NULL(rents);
+    DMOD_TEST_EXPECT_TRUE(libdmview_rents_sync(rents, &vacated));
+    DMOD_TEST_EXPECT_TRUE(!libdmview_rents_key(NULL, 4, 'a', true, 0));
+
+    DMOD_TEST_EXPECT_TRUE(!libdmview_rents_key(rents, 0x04, 'a', true, 0));                 /* no focus: the owner's */
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_focus(rent, true), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_escape(rent, 0x29), 0);
+    DMOD_TEST_EXPECT_TRUE(libdmview_rents_sync(rents, &vacated));
+    (void)event_is(o.owner, "rent.open", (int32_t)rent);
+    (void)event_is(child, "rent.focus", 1);
+
+    DMOD_TEST_EXPECT_TRUE(libdmview_rents_key(rents, 0x04, 'a', true, 0));                  /* the application's: an event of its claim */
+    DMOD_TEST_EXPECT_TRUE(event_is(child, "char", 'a'));
+    DMOD_TEST_EXPECT_TRUE(no_event(o.owner));
+    DMOD_TEST_EXPECT_TRUE(!libdmview_rents_key(rents, 0x29, 0, true, 0));                   /* escape: the owner's */
+    DMOD_TEST_EXPECT_TRUE(no_event(child));
+
+    DMOD_TEST_EXPECT_EQ(libdmview_rent_set_visible(rent, false), 0);                        /* not shown: no keys */
+    DMOD_TEST_EXPECT_TRUE(libdmview_rents_sync(rents, &vacated));
+    DMOD_TEST_EXPECT_TRUE(!libdmview_rents_key(rents, 0x04, 'a', true, 0));
+
+    libdmview_rents_destroy(rents);
+    libdmview_display_unregister(o.display);
+}
+
 /* ---- Images ---- */
 
 /* A .dmvi file (docs/image-format.md): `rows` rows of `row` bytes of

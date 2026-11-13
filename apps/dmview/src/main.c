@@ -26,6 +26,11 @@
  * display (see libdmview_key()). The display knows nothing of its inputs: no
  * matter when their drivers are configured, the group tells.
  *
+ * The application that has the display may rent rectangles of its view to other applications (screen rent, see libdmview.h):
+ * their views are drawn over its own, each into its rectangle, and they get the touches that began in it and the keys when they have
+ * the focus. The service only composes - the owner's view first, the rented ones over it, into the same framebuffer - so turning
+ * and presenting work on the whole frame as before.
+ *
  * A view designed for a portrait screen on a landscape display (or the
  * other way round) is turned by 90 degrees: it is drawn into a buffer of
  * its own orientation, and what changed is copied turned onto the screen;
@@ -54,6 +59,7 @@ typedef struct
     libdmview_display_t display;
     uint32_t            generation;
     libdmview_t         view;
+    libdmview_rents_t   rents;      /* The views of the applications in the rents of the claim that is shown */
     char*               view_path;
     dmosi_semaphore_t   wakeup;
     bool                present;    /* The driver has DMDRVI_IOCTL_GFX_PRESENT */
@@ -395,12 +401,15 @@ static void handle_event(service_t* s, const libinput_event_t* event, uint32_t n
         dmdrvi_input_state_t state = event->u.state;
         if (s->turned != NULL)
             turn_input(s, &state);
+        (void)libdmview_rents_input(s->rents, &state, now);     /* (what is a rent's is taken out: the rest is the owner's) */
         (void)libdmview_input(s->view, &state, now);
     }
     else if (event->type == LIBINPUT_EVENT_KEY)
     {
-        (void)libdmview_key(s->view, event->u.key.code, event->u.key.codepoint,
-                            event->u.key.action == LIBINPUT_ACTION_DOWN, event->u.key.modifiers);
+        const bool down = event->u.key.action == LIBINPUT_ACTION_DOWN;
+        if (libdmview_rents_key(s->rents, event->u.key.code, event->u.key.codepoint, down, event->u.key.modifiers))
+            return;                 /* The application in the rent that has the focus has it */
+        (void)libdmview_key(s->view, event->u.key.code, event->u.key.codepoint, down, event->u.key.modifiers);
     }
 }
 
@@ -435,6 +444,9 @@ static void run(service_t* s)
             got = libinput_read(s->reader, &event, 0);
         }
         deadline = (s->view != NULL) ? libdmview_update(s->view, now) : LIBDMVIEW_NO_DEADLINE;
+        uint32_t rented_deadline = libdmview_rents_update(s->rents, now);
+        if (rented_deadline < deadline)
+            deadline = rented_deadline;
         deadline_from = now;
 
         /* A view going to another view, or a claim that came or went */
@@ -450,8 +462,23 @@ static void run(service_t* s)
                 (void)libdmview_attach(s->view, s->display);   /* (the same view, another claim) */
         }
 
-        libdmview_rect_t changed;
-        if (s->view != NULL && libdmview_render(s->view, &s->surface, &changed) > 0)
+        /* Rents that came, changed or went: where one was and is not, the owner draws again */
+        libdmview_rect_t vacated;
+        if (libdmview_rents_sync(s->rents, &vacated) && s->view != NULL && vacated.w != 0)
+            libdmview_invalidate_rect(s->view, &vacated);
+
+        /* The owner's view, then the rented ones over it (what the owner drew over a rent is the rent's again) */
+        libdmview_rect_t changed = { 0, 0, 0, 0 };
+        bool drawn = s->view != NULL && libdmview_render(s->view, &s->surface, &changed) > 0;
+        libdmview_rect_t rented;
+        if (drawn)
+            libdmview_rents_damage(s->rents, &changed);
+        if (libdmview_rents_render(s->rents, &s->surface, &rented) > 0)
+        {
+            changed = drawn ? rect_union(&changed, &rented) : rented;
+            drawn = true;
+        }
+        if (drawn)
         {
             dmdrvi_gfx_rect_t area = { (uint16_t)changed.x, (uint16_t)changed.y, changed.w, changed.h };
             if (s->turned != NULL && s->swap)
@@ -500,6 +527,12 @@ int main(int argc, char* argv[])
             DMOD_LOG_ERROR("dmview: display %s is already served\n", s.name);
             ret = -EBUSY;
         }
+        else
+        {
+            s.rents = libdmview_rents_create(s.display);
+            if (s.rents == NULL)
+                ret = -ENOMEM;
+        }
     }
     if (ret == 0)
     {
@@ -509,6 +542,7 @@ int main(int argc, char* argv[])
         libsystemd_set_stop_semaphore(NULL);
     }
 
+    libdmview_rents_destroy(s.rents);
     libdmview_close(s.view);
     if (s.turned != NULL)
         Dmod_Free(s.turned);

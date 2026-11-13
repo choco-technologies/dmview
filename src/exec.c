@@ -808,12 +808,17 @@ void exec_draw(struct libdmview* v, rect_t* changed)
     {
         v->full = false;
         v->any_dirty = false;
+        v->damage = (rect_t){ 0, 0, 0, 0 };
         redraw(v, ROOT, &screen);
         *changed = screen;
     }
-    else if (v->any_dirty)
+    else if (v->any_dirty || !rect_empty(&v->damage))
     {
-        rect_t root_area = { 0, 0, 0, 0 };
+        /* An area asked for (libdmview_invalidate_rect()) is drawn with what is collected for the root */
+        rect_t root_area = rect_and(v->damage, &screen);
+        if (rect_empty(&root_area))
+            root_area = (rect_t){ 0, 0, 0, 0 };
+        v->damage = (rect_t){ 0, 0, 0, 0 };
         v->any_dirty = false;
         for (uint32_t i = 0; i < v->box_count && !v->full; i++)
         {
