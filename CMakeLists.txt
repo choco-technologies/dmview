@@ -87,3 +87,4 @@ add_subdirectory(tests)
 # ======================================================================
 add_subdirectory(apps/dmview)
 add_subdirectory(apps/dmview_demo)
+add_subdirectory(apps/hello)

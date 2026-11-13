@@ -1,0 +1,43 @@
+; hello: what an application in a rent can do with the part of the screen it is given. The view is laid out by $view.w and $view.h - the
+; size it is given - so it fits any rent: a frame, a title, the size and the taps and keys the application counted (its properties), and a
+; button, which the application is told of.
+.view   hello
+.entry  draw
+
+.font   big,   "builtin-16"
+.font   small, "builtin-8"
+
+.prop   $size,  str[24], "?",        "size"
+.prop   $taps,  str[24], "taps: 0",  "taps"
+.prop   $typed, str[24], "",         "typed"
+
+draw:
+        BOX     @all, 0, 0, $view.w, $view.h, OPAQUE
+        FILL    #FFFFFF
+        FRAME   0, 0, $view.w, $view.h, 2, #000000
+        TEXT    0, 12, $view.w, 18, "Hello!", big, #000000, CENTER
+        TEXT    0, 36, $view.w, 10, "in a rent of the screen", small, #000000, CENTER
+        TEXT    0, 52, $view.w, 10, $size, small, #000000, CENTER
+
+        BOX     @button, 20, 80, 120, 44, OPAQUE
+        ON      CLICK, tapped
+        JNE     $box.pressed, 0, .down
+        FILL    #FFFFFF
+        RFRAME  0, 0, $box.w, $box.h, 8, 3, #000000
+        TEXT    0, 0, $box.w, $box.h, "TAP ME", big, #000000, CENTER|MIDDLE
+        JMP     .done
+.down:
+        FILL    #000000
+        TEXT    0, 0, $box.w, $box.h, "TAP ME", big, #FFFFFF, CENTER|MIDDLE
+.done:
+        END
+
+        TEXT    0, 136, $view.w, 18, $taps, big, #000000, CENTER
+        TEXT    0, 162, $view.w, 10, "type something:", small, #000000, CENTER
+        TEXT    0, 176, $view.w, 18, $typed, big, #000000, CENTER
+        END
+        RET
+
+tapped:
+        EMIT    "tap"
+        RET

@@ -5,7 +5,8 @@
 # configs/dmview.rules from configs/dmview@.ini.
 set(DMOD_MODULE_NAME        dmview)
 set(DMOD_AUTHOR_NAME        "Patryk Kubiak")
-set(DMOD_STACK_SIZE         4096)
+# (a rent opens a view and draws a second one, 4096 was not enough on the ESP32-S3)
+set(DMOD_STACK_SIZE         6144)
 set(DMOD_PRIORITY           1)
 set(DMOD_DMR_PATH           ${CMAKE_CURRENT_SOURCE_DIR}/dmview.dmr)
 set(DMOD_MAL_IMPLS          )

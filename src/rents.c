@@ -35,6 +35,14 @@ struct libdmview_rents
     entry_t             entries[LIBDMVIEW_RENTS_MAX];
     uint32_t            count;
     uint8_t             target[256];    /* Per contact id: 0 - not down, TARGET_OWNER, or TARGET_ENTRY + the entry that has it */
+
+    /* What the functions below need while they work: here, not on the stack of the service - they are called from its loop, and a
+     * stack of a few kB is what it has (they are one thread's, the service's) */
+    libdmview_rent_info_t   infos[LIBDMVIEW_RENTS_MAX];
+    entry_t                 next[LIBDMVIEW_RENTS_MAX];
+    dmdrvi_input_state_t    parts[LIBDMVIEW_RENTS_MAX];
+    bool                    has[LIBDMVIEW_RENTS_MAX];
+    bool                    seen[256];
 };
 
 dmod_libdmview_api_declaration(1.0, libdmview_rents_t, _rents_create, ( libdmview_display_t display ))
@@ -98,7 +106,7 @@ dmod_libdmview_api_declaration(1.0, bool, _rents_sync, ( libdmview_rents_t rents
     /* The rents of the claim on top move with the claims too (another claim on top: other rents) */
     uint32_t generation = 0;
     uint32_t display_generation = libdmview_display_generation(rents->display);
-    libdmview_rent_info_t infos[LIBDMVIEW_RENTS_MAX];
+    libdmview_rent_info_t* infos = rents->infos;
     uint32_t count = 0;
     if (libdmview_display_rents(rents->display, &generation, infos, LIBDMVIEW_RENTS_MAX, &count) != 0)
         return false;
@@ -108,8 +116,8 @@ dmod_libdmview_api_declaration(1.0, bool, _rents_sync, ( libdmview_rents_t rents
     rents->generation = generation;
     rents->display_generation = display_generation;
 
-    entry_t next[LIBDMVIEW_RENTS_MAX];
-    memset(next, 0, sizeof(next));
+    entry_t* next = rents->next;
+    memset(next, 0, sizeof(rents->next));
     bool changed = false;
     libdmview_rect_t gone = { 0, 0, 0, 0 };
 
@@ -159,7 +167,11 @@ dmod_libdmview_api_declaration(1.0, bool, _rents_sync, ( libdmview_rents_t rents
                 int status = 0;
                 n->view = libdmview_open(n->path, &status);
                 if (n->view != NULL)
+                {
                     (void)libdmview_rent_attach(n->view, n->claim);
+                    DMOD_LOG_INFO("libdmview: %s is shown in the rent %u (%ux%u at %d,%d)\n", n->path, (unsigned)n->id,
+                                  (unsigned)n->rect.w, (unsigned)n->rect.h, (int)n->rect.x, (int)n->rect.y);
+                }
                 else
                     DMOD_LOG_ERROR("dmview: cannot show %s in a rent (%d)\n", n->path, status);
             }
@@ -196,7 +208,7 @@ dmod_libdmview_api_declaration(1.0, bool, _rents_sync, ( libdmview_rents_t rents
         }
         entry_close(old);
     }
-    memcpy(rents->entries, next, sizeof(next));
+    memcpy(rents->entries, next, sizeof(rents->entries));
     rents->count = count;
 
     /* ... and one that began in a rent that is not shown any more is the owner's */
@@ -317,18 +329,18 @@ dmod_libdmview_api_declaration(1.0, bool, _rents_input, ( libdmview_rents_t rent
     if (rents == NULL || state == NULL || rents->count == 0)
         return false;
 
-    dmdrvi_input_state_t parts[LIBDMVIEW_RENTS_MAX];
-    bool has[LIBDMVIEW_RENTS_MAX];
-    memset(parts, 0, sizeof(parts));
-    memset(has, 0, sizeof(has));
+    dmdrvi_input_state_t* parts = rents->parts;
+    bool* has = rents->has;
+    memset(rents->parts, 0, sizeof(rents->parts));
+    memset(rents->has, 0, sizeof(rents->has));
     dmdrvi_input_state_t owner = *state;
     owner.contact_count = 0;
     memset(owner.contacts, 0, sizeof(owner.contacts));
 
     /* A contact belongs to what it began in until it is lifted - by its UP, or by being missing from the state (a driver that
      * reports no UP, or none that is not a DOWN, is served too) */
-    bool seen[256];
-    memset(seen, 0, sizeof(seen));
+    bool* seen = rents->seen;
+    memset(rents->seen, 0, sizeof(rents->seen));
     uint32_t n = (state->contact_count < DMDRVI_INPUT_MAX_CONTACTS) ? state->contact_count : DMDRVI_INPUT_MAX_CONTACTS;
     for (uint32_t i = 0; i < n; i++)
     {
@@ -355,7 +367,7 @@ dmod_libdmview_api_declaration(1.0, bool, _rents_input, ( libdmview_rents_t rent
         part->contacts[part->contact_count++] = c;
         has[k] = true;
     }
-    for (uint32_t id = 0; id < sizeof(seen); id++)
+    for (uint32_t id = 0; id < sizeof(rents->seen); id++)
     {
         if (!seen[id])
             rents->target[id] = 0;                          /* (lifted) */
