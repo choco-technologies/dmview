@@ -1,0 +1,19 @@
+; The view of an application in a rent with a button that is drawn differently while it is pressed: red, blue while it is pressed
+.view   rent_press
+.entry  draw
+
+draw:
+        BOX     @all, 0, 0, $view.w, $view.h, OPAQUE
+        ON      CLICK, clicked
+        JNE     $box.pressed, 0, .down
+        FILL    #FF0000
+        JMP     .done
+.down:
+        FILL    #0000FF
+.done:
+        END
+        RET
+
+clicked:
+        EMIT    "press_click"
+        RET

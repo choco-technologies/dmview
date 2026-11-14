@@ -26,12 +26,15 @@ typedef struct
     bool                touching;       /* Got contacts last time: it is told when they are gone */
 } entry_t;
 
+#define LIVENESS_MS     500u        /* How often the processes of the claims are looked at (see _rents_sync) */
+
 struct libdmview_rents
 {
     libdmview_display_t display;
     uint32_t            generation;     /* Of the rents of the display, as last taken in */
     uint32_t            display_generation;
     bool                loaded;         /* Taken in at least once */
+    uint32_t            checked_ms;     /* When the processes of the claims were last looked at */
     entry_t             entries[LIBDMVIEW_RENTS_MAX];
     uint32_t            count;
     uint8_t             target[256];    /* Per contact id: 0 - not down, TARGET_OWNER, or TARGET_ENTRY + the entry that has it */
@@ -106,6 +109,14 @@ dmod_libdmview_api_declaration(1.0, bool, _rents_sync, ( libdmview_rents_t rents
     /* The rents of the claim on top move with the claims too (another claim on top: other rents) */
     uint32_t generation = 0;
     uint32_t display_generation = libdmview_display_generation(rents->display);
+    /* Looking at the processes of the claims (is the application still there?) is not cheap - on the ESP32-S3 the scan of the tasks takes tens of
+     * milliseconds for every claim - and this is called by every turn of the loop of the service: between the looks only a change of the claims or
+     * of the rents is taken in, which is what this is for. An application that ends is noticed within LIBDMVIEW_LIVENESS_MS. */
+    const uint32_t now = dmosi_get_tick_count();
+    if (rents->loaded && (uint32_t)(now - rents->checked_ms) < LIVENESS_MS &&
+        libdmview_display_rent_generation(rents->display) == rents->generation && display_generation == rents->display_generation)
+        return false;
+    rents->checked_ms = now;
     libdmview_rent_info_t* infos = rents->infos;
     uint32_t count = 0;
     if (libdmview_display_rents(rents->display, &generation, infos, LIBDMVIEW_RENTS_MAX, &count) != 0)

@@ -1135,6 +1135,13 @@ static bool owner_start(owner_t* o, const char* name)
 }
 
 /* A rent the application of `view` takes: its claim */
+static bool rent_take_view(const owner_t* o, const libdmview_rect_t* rect, const char* view, uint32_t* rent, uint32_t* claim)
+{
+    char name[32];
+    return libdmview_rent_create(o->owner, rect, rent) == 0 && libdmview_rent_name(*rent, name, sizeof(name)) == 0 &&
+           libdmview_claim(name, view, claim) == 0;
+}
+
 static bool rent_take(const owner_t* o, const libdmview_rect_t* rect, uint32_t* rent, uint32_t* claim)
 {
     char name[32];
@@ -1920,4 +1927,36 @@ DMOD_TEST_STEP(libdmview_rebases_when_the_primary_finger_is_lifted)
     libdmview_get_int(g_view, "drags", &value); DMOD_TEST_EXPECT_EQ(value, 1);
     pinch_sample(0, 0, 0, false, 80);
     libdmview_get_int(g_view, "clicks", &value); DMOD_TEST_EXPECT_EQ(value, 0);
+}
+
+/* A button in a rent is drawn pressed while it is touched: the touch is drawn before it is lifted, as it is on the owner's own view */
+DMOD_TEST_STEP(libdmview_draws_the_pressed_state_in_a_rent)
+{
+    owner_t o;
+    uint32_t rent = 0, child = 0;
+    libdmview_rect_t vacated, changed;
+    const libdmview_rect_t rect = { 8, 8, 32, 24 };
+
+    DMOD_TEST_EXPECT_TRUE(owner_start(&o, "press"));
+    DMOD_TEST_EXPECT_TRUE(rent_take_view(&o, &rect, FIXTURE("rent_press.dmv"), &rent, &child));
+    libdmview_rents_t rents = libdmview_rents_create(o.display);
+    DMOD_TEST_EXPECT_NOT_NULL(rents);
+    DMOD_TEST_EXPECT_TRUE(libdmview_rents_sync(rents, &vacated));
+    DMOD_TEST_EXPECT_EQ(libdmview_rents_render(rents, &g_s32, &changed), 1);
+    DMOD_TEST_EXPECT_EQ(px(20, 15), 0xFFFF0000u);
+
+    send_touch(rents, 1, 22, 17, DMDRVI_INPUT_CONTACT_DOWN, 100);
+    (void)libdmview_rents_update(rents, 100);
+    DMOD_TEST_EXPECT_EQ(libdmview_rents_render(rents, &g_s32, &changed), 1);
+    DMOD_TEST_EXPECT_EQ(px(20, 15), 0xFF0000FFu);                       /* pressed */
+
+    send_touch(rents, 1, 22, 17, DMDRVI_INPUT_CONTACT_UP, 120);
+    send_touch(rents, 0, 0, 0, DMDRVI_INPUT_CONTACT_MOVE, 130);        /* (what follows the UP: the click is told when it is lifted) */
+    (void)libdmview_rents_update(rents, 130);
+    DMOD_TEST_EXPECT_EQ(libdmview_rents_render(rents, &g_s32, &changed), 1);
+    DMOD_TEST_EXPECT_EQ(px(20, 15), 0xFFFF0000u);                       /* released */
+    DMOD_TEST_EXPECT_TRUE(event_is(child, "press_click", 0));
+
+    libdmview_rents_destroy(rents);
+    libdmview_display_unregister(o.display);
 }
