@@ -5,3 +5,4 @@ $include https://github.com/choco-technologies/dmview/releases/download/vlatest/
 libdmview https://github.com/choco-technologies/dmview/releases/download/v<version>/libdmview-v<version>-<arch_name>.zip
 dmview https://github.com/choco-technologies/dmview/releases/download/v<version>/dmview-v<version>-<arch_name>.zip
 dmview_demo https://github.com/choco-technologies/dmview/releases/download/v<version>/dmview_demo-v<version>-<arch_name>.zip
+hello https://github.com/choco-technologies/dmview/releases/download/v<version>/hello-v<version>-<arch_name>.zip
