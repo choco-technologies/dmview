@@ -31,6 +31,12 @@
  * the focus. The service only composes - the owner's view first, the rented ones over it, into the same framebuffer - so turning
  * and presenting work on the whole frame as before.
  *
+ * The keyboard of symbols: a keyboard has not every character, and nobody learns where the rest is - they are on the screen, to touch. The MIC key
+ * (without sym: with it it is a zero) opens a view of the service, symbols.dmv ($DMVIEW_SYMBOLS, else /eviews/dmview/symbols.dmv), over the lower
+ * part of the display; a touch in it is the view's, not the application's, and the view says what was chosen (EMIT char, the character; EMIT
+ * close) - the character goes to the application as the key of a keyboard would. The view stays until it is closed (a password has many).
+ * Esc or the MIC key close it too.
+ *
  * A view designed for a portrait screen on a landscape display (or the
  * other way round) is turned by 90 degrees: it is drawn into a buffer of
  * its own orientation, and what changed is copied turned onto the screen;
@@ -41,6 +47,9 @@
 #define CLAIM_POLL_MS   100u     /* Longest wait - claims and stop requests are seen this fast */
 #define MAX_BATCH       64u      /* Events taken between two drawings */
 #define ROTATE_TILE     16u      /* Lines of a view turned at once - they stay in the cache */
+#define KEY_ESC         0x29u    /* USB HID usage */
+#define KEY_MIC         0x101u   /* dmdrvi: the key with a microphone (no USB code); with sym it is a zero, the layout says so */
+#define SYMBOLS_DEFAULT "/eviews/dmview/symbols.dmv"
 
 typedef struct
 {
@@ -63,6 +72,11 @@ typedef struct
     char*               view_path;
     dmosi_semaphore_t   wakeup;
     bool                present;    /* The driver has DMDRVI_IOCTL_GFX_PRESENT */
+    libdmview_t         symbols;    /* The keyboard of symbols, NULL: closed */
+    libdmview_rect_t    symbols_rect;   /* ... where it is on the display */
+    libdmview_surface_t symbols_surface;
+    bool                symbols_touch;  /* A touch that began in it is going on */
+    bool                symbols_failed; /* No such view: said once */
 } service_t;
 
 static char* concat(const char* a, const char* b, const char* c)
@@ -360,6 +374,12 @@ static void show_view(service_t* s, char* path)
         return;
     }
     bool was_shown = s->view != NULL;
+    if (s->symbols != NULL)
+    {
+        libdmview_close(s->symbols);            /* (what it covered is the next view's: it is drawn whole) */
+        s->symbols = NULL;
+        s->symbols_touch = false;
+    }
     libdmview_close(s->view);
     s->view = NULL;
     if (s->view_path != NULL)
@@ -391,6 +411,159 @@ static void show_view(service_t* s, char* path)
     }
 }
 
+/* ---- The keyboard of symbols ---- */
+
+static bool in_rect(const libdmview_rect_t* r, int32_t x, int32_t y)
+{
+    return x >= r->x && y >= r->y && x < (int32_t)r->x + r->w && y < (int32_t)r->y + r->h;
+}
+
+/* What the owner (or a rent) drew over the keyboard is the keyboard's again; what the keyboard covered is theirs */
+static void symbols_close(service_t* s)
+{
+    if (s->symbols == NULL)
+        return;
+    libdmview_close(s->symbols);
+    s->symbols = NULL;
+    s->symbols_touch = false;
+    if (s->view != NULL)
+        libdmview_invalidate_rect(s->view, &s->symbols_rect);
+}
+
+static void symbols_open(service_t* s)
+{
+    if (s->symbols != NULL || s->view == NULL || s->turned != NULL)
+        return;                         /* (a turned view: the keyboard is not drawn turned) */
+    const char* path = Dmod_GetEnv("DMVIEW_SYMBOLS");
+    if (path == NULL || path[0] == '\0')
+        path = SYMBOLS_DEFAULT;
+    int status = 0;
+    libdmview_t view = Dmod_FileAvailable(path) ? libdmview_open(path, &status) : NULL;
+    if (view == NULL)
+    {
+        if (!s->symbols_failed)
+            DMOD_LOG_WARN("dmview: no keyboard of symbols (%s: %d)\n", path, status);
+        s->symbols_failed = true;
+        return;
+    }
+    uint16_t w = 0, h = 0;
+    (void)libdmview_get_size(view, &w, &h);
+    if (w == 0 || h == 0 || w > s->screen.width || h > s->screen.height)
+    {
+        DMOD_LOG_WARN("dmview: the keyboard of symbols is %ux%u, the display %ux%u\n", w, h, s->screen.width, s->screen.height);
+        libdmview_close(view);
+        return;
+    }
+    s->symbols = view;
+    s->symbols_rect.x = (int16_t)((s->screen.width - w) / 2U);          /* (at the bottom, in the middle) */
+    s->symbols_rect.y = (int16_t)(s->screen.height - h);
+    s->symbols_rect.w = w;
+    s->symbols_rect.h = h;
+    s->symbols_touch = false;
+    libdmview_invalidate(view);
+}
+
+/* The surface of the keyboard: the part of the one of the view that it covers */
+static void symbols_surface(service_t* s)
+{
+    const uint32_t bpp = (s->surface.format == DMDRVI_GFX_PIXEL_FORMAT_RGB565) ? 2U : 4U;
+    s->symbols_surface = s->surface;
+    s->symbols_surface.pixels = (uint8_t*)s->surface.pixels + (size_t)s->symbols_rect.y * s->surface.stride + (size_t)s->symbols_rect.x * bpp;
+    s->symbols_surface.width = s->symbols_rect.w;
+    s->symbols_surface.height = s->symbols_rect.h;
+}
+
+/* A character the keyboard gave: for the application as the key of a keyboard would be (no key: the code is 0) */
+static void symbols_char(service_t* s, uint32_t codepoint)
+{
+    for (int down = 1; down >= 0; down--)
+    {
+        if (!libdmview_rents_key(s->rents, 0, codepoint, down != 0, 0) && s->view != NULL)
+            (void)libdmview_key(s->view, 0, codepoint, down != 0, 0);
+    }
+}
+
+/* What the view of the keyboard said: a character, or that it is done */
+static void symbols_events(service_t* s)
+{
+    libdmview_event_t event;
+    while (s->symbols != NULL && libdmview_take_event(s->symbols, &event) == 0)
+    {
+        if (strcmp(event.name, "char") == 0 && event.value > 0)
+            symbols_char(s, (uint32_t)event.value);
+        else if (strcmp(event.name, "close") == 0)
+            symbols_close(s);
+    }
+}
+
+/* A state of the touch panel: true when it is the keyboard's (a touch that began on it, to its end) */
+static bool symbols_input(service_t* s, const dmdrvi_input_state_t* state, uint32_t now)
+{
+    if (s->symbols == NULL)
+        return false;
+    const bool touching = state->contact_count > 0;
+    if (!s->symbols_touch)
+    {
+        if (!touching || !in_rect(&s->symbols_rect, state->contacts[0].x, state->contacts[0].y) ||
+            state->contacts[0].event != DMDRVI_INPUT_CONTACT_DOWN)
+            return false;
+        s->symbols_touch = true;
+    }
+    dmdrvi_input_state_t local = *state;
+    for (uint32_t i = 0; i < local.contact_count && i < DMDRVI_INPUT_MAX_CONTACTS; i++)
+    {
+        int32_t x = (int32_t)local.contacts[i].x - s->symbols_rect.x, y = (int32_t)local.contacts[i].y - s->symbols_rect.y;
+        local.contacts[i].x = (uint16_t)(x < 0 ? 0 : (x >= s->symbols_rect.w ? s->symbols_rect.w - 1 : x));
+        local.contacts[i].y = (uint16_t)(y < 0 ? 0 : (y >= s->symbols_rect.h ? s->symbols_rect.h - 1 : y));
+    }
+    (void)libdmview_input(s->symbols, &local, now);
+    if (!touching)
+        s->symbols_touch = false;
+    symbols_events(s);
+    return true;
+}
+
+/* The MIC key opens the keyboard (and closes it), Esc closes it: true when the key was taken */
+static bool symbols_key(service_t* s, const libinput_event_t* event)
+{
+    if (event->u.key.action != LIBINPUT_ACTION_DOWN)
+        return false;
+    if (event->u.key.code == KEY_MIC && event->u.key.codepoint == 0)
+    {
+        if (s->symbols != NULL)
+            symbols_close(s);
+        else
+            symbols_open(s);
+        return true;
+    }
+    if (event->u.key.code == KEY_ESC && s->symbols != NULL)
+    {
+        symbols_close(s);
+        return true;
+    }
+    return false;
+}
+
+/* Over what was drawn this frame: the keyboard, again where something drew over it */
+static void symbols_render(service_t* s, libdmview_rect_t* changed, bool* drawn)
+{
+    if (s->symbols == NULL)
+        return;
+    libdmview_rect_t over = { s->symbols_rect.x, s->symbols_rect.y, s->symbols_rect.w, s->symbols_rect.h };
+    if (*drawn && !(changed->x >= over.x + (int32_t)over.w || changed->y >= over.y + (int32_t)over.h ||
+                    over.x >= changed->x + (int32_t)changed->w || over.y >= changed->y + (int32_t)changed->h))
+        libdmview_invalidate(s->symbols);
+    symbols_surface(s);
+    libdmview_rect_t mine;
+    if (libdmview_render(s->symbols, &s->symbols_surface, &mine) > 0)
+    {
+        mine.x = (int16_t)(mine.x + s->symbols_rect.x);
+        mine.y = (int16_t)(mine.y + s->symbols_rect.y);
+        *changed = *drawn ? rect_union(changed, &mine) : mine;
+        *drawn = true;
+    }
+}
+
 /* An event of libinput: a state (touch, buttons) is the view's, a key is the application's */
 static void handle_event(service_t* s, const libinput_event_t* event, uint32_t now)
 {
@@ -401,12 +574,16 @@ static void handle_event(service_t* s, const libinput_event_t* event, uint32_t n
         dmdrvi_input_state_t state = event->u.state;
         if (s->turned != NULL)
             turn_input(s, &state);
+        if (symbols_input(s, &state, now))
+            return;                 /* the keyboard of symbols has this touch */
         (void)libdmview_rents_input(s->rents, &state, now);     /* (what is a rent's is taken out: the rest is the owner's) */
         (void)libdmview_input(s->view, &state, now);
     }
     else if (event->type == LIBINPUT_EVENT_KEY)
     {
         const bool down = event->u.key.action == LIBINPUT_ACTION_DOWN;
+        if (symbols_key(s, event))
+            return;                 /* MIC, Esc: the keyboard of symbols */
         if (libdmview_rents_key(s->rents, event->u.key.code, event->u.key.codepoint, down, event->u.key.modifiers))
             return;                 /* The application in the rent that has the focus has it */
         (void)libdmview_key(s->view, event->u.key.code, event->u.key.codepoint, down, event->u.key.modifiers);
@@ -447,6 +624,13 @@ static void run(service_t* s)
         uint32_t rented_deadline = libdmview_rents_update(s->rents, now);
         if (rented_deadline < deadline)
             deadline = rented_deadline;
+        if (s->symbols != NULL)
+        {
+            uint32_t symbols_deadline = libdmview_update(s->symbols, now);
+            if (symbols_deadline < deadline)
+                deadline = symbols_deadline;
+            symbols_events(s);
+        }
         deadline_from = now;
 
         /* A view going to another view, or a claim that came or went */
@@ -478,6 +662,7 @@ static void run(service_t* s)
             changed = drawn ? rect_union(&changed, &rented) : rented;
             drawn = true;
         }
+        symbols_render(s, &changed, &drawn);
         if (drawn)
         {
             dmdrvi_gfx_rect_t area = { (uint16_t)changed.x, (uint16_t)changed.y, changed.w, changed.h };
@@ -543,6 +728,7 @@ int main(int argc, char* argv[])
     }
 
     libdmview_rents_destroy(s.rents);
+    libdmview_close(s.symbols);
     libdmview_close(s.view);
     if (s.turned != NULL)
         Dmod_Free(s.turned);

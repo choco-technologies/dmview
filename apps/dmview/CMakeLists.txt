@@ -10,6 +10,11 @@ set(DMOD_STACK_SIZE         6144)
 set(DMOD_PRIORITY           1)
 set(DMOD_DMR_PATH           ${CMAKE_CURRENT_SOURCE_DIR}/dmview.dmr)
 set(DMOD_MAL_IMPLS          )
+# The keyboard of symbols (views/symbols.html) becomes a view with its font: dmod converts it at build time and packages it as the module's views
+# (/eviews/dmview/symbols.dmv on the device).
+set(DMOD_ASSETS_PATHS       ${CMAKE_CURRENT_SOURCE_DIR}/views)
+# (the views of every module of this project that has some are converted into one directory by default: this one's are its own)
+set(DMOD_VIEWS_DIR          ${CMAKE_BINARY_DIR}/views-dmview)
 
 dmod_add_executable(${DMOD_MODULE_NAME} ${DMOD_MODULE_VERSION}
     src/main.c

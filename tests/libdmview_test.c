@@ -1960,3 +1960,31 @@ DMOD_TEST_STEP(libdmview_draws_the_pressed_state_in_a_rent)
     libdmview_rents_destroy(rents);
     libdmview_display_unregister(o.display);
 }
+
+/* A view that is no claim's - the one the service shows itself (the keyboard of symbols) - keeps its events for libdmview_take_event() */
+DMOD_TEST_STEP(libdmview_a_view_without_a_claim_keeps_its_events)
+{
+    libdmview_event_t ev;
+    DMOD_TEST_EXPECT_TRUE(open_fixture(FIXTURE("channel.dmv")));
+    DMOD_TEST_EXPECT_EQ(libdmview_take_event(g_view, &ev), -ENOENT);
+    DMOD_TEST_EXPECT_EQ(libdmview_take_event(NULL, &ev), -EINVAL);
+    DMOD_TEST_EXPECT_EQ(libdmview_take_event(g_view, NULL), -EINVAL);
+
+    libdmview_rect_t r;
+    libdmview_render(g_view, &g_s32, &r);
+    click(10, 10, 100);
+    DMOD_TEST_EXPECT_EQ(libdmview_take_event(g_view, &ev), 0);
+    DMOD_TEST_EXPECT_EQ(strcmp(ev.name, "clicked"), 0);
+    DMOD_TEST_EXPECT_EQ(ev.value, 1);
+    DMOD_TEST_EXPECT_EQ(libdmview_take_event(g_view, &ev), 0);
+    DMOD_TEST_EXPECT_EQ(strcmp(ev.name, "plain"), 0);
+    DMOD_TEST_EXPECT_EQ(libdmview_take_event(g_view, &ev), -ENOENT);
+
+    /* Too many: the oldest go (8 are kept) */
+    for (uint32_t i = 0; i < 6; i++)
+        click(10, 10, 200 + i * 100);                       /* 12 events */
+    uint32_t taken = 0;
+    while (libdmview_take_event(g_view, &ev) == 0)
+        taken++;
+    DMOD_TEST_EXPECT_EQ(taken, LIBDMVIEW_OWN_EVENTS);
+}
