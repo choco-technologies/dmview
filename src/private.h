@@ -313,6 +313,10 @@ struct libdmview
     /* The claim the view is attached to (libdmview_attach()), 0: none */
     uint32_t        claim;
 
+    /* The events of a view that is no claim's (a view the service shows itself): the service takes them (libdmview_take_event()) */
+    libdmview_event_t own_events[LIBDMVIEW_OWN_EVENTS];
+    uint32_t        own_first, own_count;
+
     /* Images */
     char*           dir;            /* Directory of the view file - relative image paths start there */
     uint32_t        slot_count;

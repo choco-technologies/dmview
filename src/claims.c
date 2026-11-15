@@ -822,7 +822,23 @@ void claims_publish(struct libdmview* v, uint32_t index)
 /* EMIT */
 void claims_emit(struct libdmview* v, const char* name, int32_t value)
 {
-    if (v->claim == 0 || g_lock == NULL)
+    if (v->claim == 0)
+    {
+        /* A view no claim owns (the service shows it itself): its events wait in the view for libdmview_take_event() */
+        if (v->own_count == LIBDMVIEW_OWN_EVENTS)
+        {
+            v->own_first = (v->own_first + 1U) % LIBDMVIEW_OWN_EVENTS;
+            v->own_count--;
+        }
+        libdmview_event_t* e = &v->own_events[(v->own_first + v->own_count) % LIBDMVIEW_OWN_EVENTS];
+        strncpy(e->name, name, sizeof(e->name) - 1U);
+        e->name[sizeof(e->name) - 1U] = '\0';
+        e->value = value;
+        e->dropped = 0;
+        v->own_count++;
+        return;
+    }
+    if (g_lock == NULL)
         return;
     dmosi_mutex_lock(g_lock);
     queue_event(find_claim(v->claim), name, value);

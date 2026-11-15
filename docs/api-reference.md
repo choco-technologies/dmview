@@ -17,6 +17,7 @@
 | `int libdmview_key(libdmview_t view, uint16_t code, uint32_t codepoint, bool down, uint8_t modifiers)` | A key of a keyboard, for the application of the claim: the events `mods` (modifier bits changed), `char` (a key that gives a character went down: its Unicode value) and `key` (one that gives none: its USB HID usage) |
 | `uint32_t libdmview_update(libdmview_t view, uint32_t now_ms)` | Run what is due (`.timer`, `LONG`); returns the ms until the next deadline or `LIBDMVIEW_NO_DEADLINE` |
 | `const char* libdmview_take_goto(libdmview_t view)` | The path a `GOTO` asked for, once; NULL when none |
+| `int libdmview_take_event(libdmview_t view, libdmview_event_t* event)` | An `EMIT` of a view that is **not attached to a claim** (a view the service shows itself - the keyboard of symbols), oldest first; 8 are kept. `-ENOENT` when there is none. A view that is attached gives its events to the claim (`libdmview_wait_event()`) |
 | `int libdmview_get_int(view, name, int32_t* value)` | Read an integer variable (name without `$`) |
 | `int libdmview_set_int(view, name, int32_t value)` | Set an integer variable - redraws what depends on it |
 | `int libdmview_set_string(view, name, const char* value)` | Set a string variable (truncated to its size) |

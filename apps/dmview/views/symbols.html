@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Symbols</title>
+<link rel="stylesheet" href="fonts/inter.css">
+<style>
+/*
+ * The keyboard of symbols of dmview, for the e-paper of a phone (240 x 212, over the lower part of the display): the characters a small
+ * keyboard has no key for, to touch. Black and white only, lines of 1-2 px, text never thinner than 700 (the display has no gray). The font is
+ * Inter: the converter makes it in the sizes the page draws, and the firmware has no fonts of its own for a view. A cell that is pressed is
+ * inverted (:active). What it says: EMIT char (the character), EMIT close - dmview takes them (apps/dmview/src/main.c).
+ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 240px; height: 212px; background: #fff; color: #000; font-family: 'Inter'; font-weight: 700; overflow: hidden; }
+#screen { position: relative; width: 240px; height: 212px; background: #fff; overflow: hidden; }
+.rule { position: absolute; left: 0; width: 240px; height: 2px; background: #000; }
+#title { position: absolute; left: 12px; top: 6px; font-size: 18px; font-weight: 700; }
+#close { position: absolute; right: 8px; top: 3px; width: 78px; height: 26px; border: 2px solid #000; border-radius: 8px; text-align: center; font-size: 15px; line-height: 22px; background: #fff; }
+#close:active { background: #000; color: #fff; }
+.c { position: absolute; width: 31px; height: 37px; border: 1px solid #000; background: #fff; }
+.c:active { background: #000; color: #fff; }
+.g { position: absolute; left: 0; top: 4px; width: 29px; text-align: center; font-size: 22px; font-weight: 700; line-height: 1.2; }
+</style>
+</head>
+<body>
+<div id="screen">
+  <div class="rule" style="top:0"></div>
+  <div id="title">Symbols</div>
+  <div id="close">Close</div>
+  <div class="c" id="c0" style="left:0px;top:32px"><div class="g">!</div></div>
+  <div class="c" id="c1" style="left:30px;top:32px"><div class="g">&quot;</div></div>
+  <div class="c" id="c2" style="left:60px;top:32px"><div class="g">#</div></div>
+  <div class="c" id="c3" style="left:90px;top:32px"><div class="g">$</div></div>
+  <div class="c" id="c4" style="left:120px;top:32px"><div class="g">%</div></div>
+  <div class="c" id="c5" style="left:150px;top:32px"><div class="g">&amp;</div></div>
+  <div class="c" id="c6" style="left:180px;top:32px"><div class="g">&#x27;</div></div>
+  <div class="c" id="c7" style="left:210px;top:32px"><div class="g">(</div></div>
+  <div class="c" id="c8" style="left:0px;top:68px"><div class="g">)</div></div>
+  <div class="c" id="c9" style="left:30px;top:68px"><div class="g">*</div></div>
+  <div class="c" id="c10" style="left:60px;top:68px"><div class="g">+</div></div>
+  <div class="c" id="c11" style="left:90px;top:68px"><div class="g">,</div></div>
+  <div class="c" id="c12" style="left:120px;top:68px"><div class="g">-</div></div>
+  <div class="c" id="c13" style="left:150px;top:68px"><div class="g">.</div></div>
+  <div class="c" id="c14" style="left:180px;top:68px"><div class="g">/</div></div>
+  <div class="c" id="c15" style="left:210px;top:68px"><div class="g">:</div></div>
+  <div class="c" id="c16" style="left:0px;top:104px"><div class="g">;</div></div>
+  <div class="c" id="c17" style="left:30px;top:104px"><div class="g">&lt;</div></div>
+  <div class="c" id="c18" style="left:60px;top:104px"><div class="g">=</div></div>
+  <div class="c" id="c19" style="left:90px;top:104px"><div class="g">&gt;</div></div>
+  <div class="c" id="c20" style="left:120px;top:104px"><div class="g">?</div></div>
+  <div class="c" id="c21" style="left:150px;top:104px"><div class="g">@</div></div>
+  <div class="c" id="c22" style="left:180px;top:104px"><div class="g">[</div></div>
+  <div class="c" id="c23" style="left:210px;top:104px"><div class="g">\</div></div>
+  <div class="c" id="c24" style="left:0px;top:140px"><div class="g">]</div></div>
+  <div class="c" id="c25" style="left:30px;top:140px"><div class="g">^</div></div>
+  <div class="c" id="c26" style="left:60px;top:140px"><div class="g">_</div></div>
+  <div class="c" id="c27" style="left:90px;top:140px"><div class="g">`</div></div>
+  <div class="c" id="c28" style="left:120px;top:140px"><div class="g">{</div></div>
+  <div class="c" id="c29" style="left:150px;top:140px"><div class="g">|</div></div>
+  <div class="c" id="c30" style="left:180px;top:140px"><div class="g">}</div></div>
+  <div class="c" id="c31" style="left:210px;top:140px"><div class="g">~</div></div>
+  <div class="c" id="c32" style="left:0px;top:176px"><div class="g">€</div></div>
+  <div class="c" id="c33" style="left:30px;top:176px"><div class="g">£</div></div>
+  <div class="c" id="c34" style="left:60px;top:176px"><div class="g">°</div></div>
+  <div class="c" id="c35" style="left:90px;top:176px"><div class="g">±</div></div>
+  <div class="c" id="c36" style="left:120px;top:176px"><div class="g">×</div></div>
+  <div class="c" id="c37" style="left:150px;top:176px"><div class="g">÷</div></div>
+  <div class="c" id="c38" style="left:180px;top:176px"><div class="g">¿</div></div>
+  <div class="c" id="c39" style="left:210px;top:176px"><div class="g">¡</div></div>
+</div>
+<script src="dmod.js"></script>
+<script>
+/* Behaviour (compiled by todmvs): a touch on a cell says its character, Close says that it is done. */
+document.getElementById('c0').addEventListener('click', () => dmod.emit('char', 33));
+document.getElementById('c1').addEventListener('click', () => dmod.emit('char', 34));
+document.getElementById('c2').addEventListener('click', () => dmod.emit('char', 35));
+document.getElementById('c3').addEventListener('click', () => dmod.emit('char', 36));
+document.getElementById('c4').addEventListener('click', () => dmod.emit('char', 37));
+document.getElementById('c5').addEventListener('click', () => dmod.emit('char', 38));
+document.getElementById('c6').addEventListener('click', () => dmod.emit('char', 39));
+document.getElementById('c7').addEventListener('click', () => dmod.emit('char', 40));
+document.getElementById('c8').addEventListener('click', () => dmod.emit('char', 41));
+document.getElementById('c9').addEventListener('click', () => dmod.emit('char', 42));
+document.getElementById('c10').addEventListener('click', () => dmod.emit('char', 43));
+document.getElementById('c11').addEventListener('click', () => dmod.emit('char', 44));
+document.getElementById('c12').addEventListener('click', () => dmod.emit('char', 45));
+document.getElementById('c13').addEventListener('click', () => dmod.emit('char', 46));
+document.getElementById('c14').addEventListener('click', () => dmod.emit('char', 47));
+document.getElementById('c15').addEventListener('click', () => dmod.emit('char', 58));
+document.getElementById('c16').addEventListener('click', () => dmod.emit('char', 59));
+document.getElementById('c17').addEventListener('click', () => dmod.emit('char', 60));
+document.getElementById('c18').addEventListener('click', () => dmod.emit('char', 61));
+document.getElementById('c19').addEventListener('click', () => dmod.emit('char', 62));
+document.getElementById('c20').addEventListener('click', () => dmod.emit('char', 63));
+document.getElementById('c21').addEventListener('click', () => dmod.emit('char', 64));
+document.getElementById('c22').addEventListener('click', () => dmod.emit('char', 91));
+document.getElementById('c23').addEventListener('click', () => dmod.emit('char', 92));
+document.getElementById('c24').addEventListener('click', () => dmod.emit('char', 93));
+document.getElementById('c25').addEventListener('click', () => dmod.emit('char', 94));
+document.getElementById('c26').addEventListener('click', () => dmod.emit('char', 95));
+document.getElementById('c27').addEventListener('click', () => dmod.emit('char', 96));
+document.getElementById('c28').addEventListener('click', () => dmod.emit('char', 123));
+document.getElementById('c29').addEventListener('click', () => dmod.emit('char', 124));
+document.getElementById('c30').addEventListener('click', () => dmod.emit('char', 125));
+document.getElementById('c31').addEventListener('click', () => dmod.emit('char', 126));
+document.getElementById('c32').addEventListener('click', () => dmod.emit('char', 8364));
+document.getElementById('c33').addEventListener('click', () => dmod.emit('char', 163));
+document.getElementById('c34').addEventListener('click', () => dmod.emit('char', 176));
+document.getElementById('c35').addEventListener('click', () => dmod.emit('char', 177));
+document.getElementById('c36').addEventListener('click', () => dmod.emit('char', 215));
+document.getElementById('c37').addEventListener('click', () => dmod.emit('char', 247));
+document.getElementById('c38').addEventListener('click', () => dmod.emit('char', 191));
+document.getElementById('c39').addEventListener('click', () => dmod.emit('char', 161));
+document.getElementById('close').addEventListener('click', () => dmod.emit('close'));
+</script>
+</body>
+</html>

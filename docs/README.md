@@ -13,6 +13,7 @@ display service.
 - **[image-format.md](image-format.md)** - `.dmvi` image files: raw pixels and masks, made by todmvi
 - **[api-reference.md](api-reference.md)** - libdmview: views, displays and claims
 - **[rent.md](rent.md)** - screen rent: an application that owns a display rents rectangles of it to other applications
+- **[symbols.md](symbols.md)** - the keyboard of symbols: the characters a small keyboard has no key for, on the screen, to touch
 
 ## Quick Reference
 

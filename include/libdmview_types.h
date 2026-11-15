@@ -48,6 +48,9 @@ typedef struct
     uint32_t    dropped;    /**< Events dropped before this one - the application was too slow */
 } libdmview_event_t;
 
+/** Events of a view that is not attached to a claim, kept until the service takes them (the oldest are dropped). */
+#define LIBDMVIEW_OWN_EVENTS        8u
+
 /** Longest path of a view in libdmview_rent_info_t, with the terminating zero. */
 #define LIBDMVIEW_PATH_MAX      192u
 

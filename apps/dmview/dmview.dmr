@@ -10,6 +10,9 @@ version=./${module}_version.txt => ${destination}/${module}_version.txt [origin=
 # === Documentation ===
 readme=./README.md => ${destination}/${module}/README.md [origin=${repo_dir}/README.md]
 
+# === The view of the keyboard of symbols (converted from apps/dmview/views) ===
+views=./views => ${views_dir} [origin=${views_dir}]
+
 # === Configuration files ===
 # dmview@.ini (unit template) and dmview.rules (device rule) - used by
 # dmf-get's "dmview service=dmview@.ini" / "dmview rules=dmview.rules"
@@ -17,6 +20,7 @@ configs=./configs => ${destination}/${module}/configs [origin=${repo_dir}/config
 
 # === License ===
 license=./LICENSE => ${destination}/${module}/LICENSE [origin=${repo_dir}/LICENSE]
+license=./LICENSE-Inter.txt => ${destination}/${module}/LICENSE-Inter.txt [origin=${repo_dir}/apps/dmview/views/fonts/LICENSE-Inter.txt]
 
 # Adding itself
 dmr=./${module}.dmr => ${destination}/${module}/${module}.dmr [origin=${repo_dir}/apps/dmview/${module}.dmr]

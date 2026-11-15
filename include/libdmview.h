@@ -106,6 +106,13 @@ dmod_libdmview_api(1.0, uint32_t, _update, ( libdmview_t view, uint32_t now_ms )
  */
 dmod_libdmview_api(1.0, const char*, _take_goto, ( libdmview_t view ));
 
+/**
+ * @brief An event (EMIT) of a view that is not attached to a claim - one the service shows itself, like the keyboard of symbols - oldest first.
+ *        A view that is attached gives its events to the claim (libdmview_wait_event()).
+ * @return 0 and the event, -ENOENT when there is none, -EINVAL
+ */
+dmod_libdmview_api(1.0, int, _take_event, ( libdmview_t view, libdmview_event_t* event ));
+
 /** @brief Read an integer variable by name (without '$'). -ENOENT / -EINVAL. */
 dmod_libdmview_api(1.0, int, _get_int, ( libdmview_t view, const char* name, int32_t* value ));
 

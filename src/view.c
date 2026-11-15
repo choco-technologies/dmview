@@ -636,6 +636,18 @@ dmod_libdmview_api_declaration(1.0, const char*, _take_goto, ( libdmview_t view 
     return view->goto_taken;
 }
 
+dmod_libdmview_api_declaration(1.0, int, _take_event, ( libdmview_t view, libdmview_event_t* event ))
+{
+    if (!is_view(view) || event == NULL)
+        return -EINVAL;
+    if (view->own_count == 0U)
+        return -ENOENT;
+    *event = view->own_events[view->own_first];
+    view->own_first = (view->own_first + 1U) % LIBDMVIEW_OWN_EVENTS;
+    view->own_count--;
+    return 0;
+}
+
 /* ---- Variables by name ---- */
 
 static int find_var(libdmview_t v, const char* name, uint8_t type)
