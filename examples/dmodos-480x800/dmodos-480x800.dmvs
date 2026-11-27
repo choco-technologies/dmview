@@ -1,0 +1,1611 @@
+; dmodos_480x800 - made by todmvs from dmodos.html (dmvs_html)
+
+.view   dmodos_480x800
+.size   480, 800
+.entry  draw
+
+.font   inter_semibold_11_t0_27, "inter-semibold-11-t0.27"
+.font   inter_medium_11, "inter-medium-11"
+.font   icons_solid_10, "icons-solid-10"
+.font   icons_brands_11, "icons-brands-11"
+.font   icons_solid_12, "icons-solid-12"
+.font   inter_bold_48_t_2_39, "inter-bold-48-t-2.39"
+.font   inter_medium_12, "inter-medium-12"
+.font   icons_solid_24, "icons-solid-24"
+.font   inter_semibold_14, "inter-semibold-14"
+.font   inter_regular_10, "inter-regular-10"
+.font   inter_medium_10, "inter-medium-10"
+.font   icons_solid_20, "icons-solid-20"
+.font   icons_solid_16, "icons-solid-16"
+.font   inter_regular_14, "inter-regular-14"
+.font   icons_brands_16, "icons-brands-16"
+.font   inter_regular_12, "inter-regular-12"
+.font   inter_bold_12, "inter-bold-12"
+.font   inter_semibold_10_t0_5, "inter-semibold-10-t0.5"
+.font   inter_medium_14, "inter-medium-14"
+.font   inter_regular_9, "inter-regular-9"
+.font   inter_bold_9, "inter-bold-9"
+.font   inter_bold_14, "inter-bold-14"
+.font   icons_solid_48, "icons-solid-48"
+.font   inter_bold_18, "inter-bold-18"
+.font   icons_solid_18, "icons-solid-18"
+.font   icons_solid_60, "icons-solid-60"
+.font   icons_solid_72, "icons-solid-72"
+.font   inter_bold_60_t_3, "inter-bold-60-t-3"
+.font   inter_medium_14_t1_39, "inter-medium-14-t1.39"
+.font   inter_semibold_12, "inter-semibold-12"
+
+.gradient g1, LINEAR, 135, #2B5876 0, #4E4376 100
+.gradient g2, LINEAR, 180, #40000000 0, #32000000 14.3, #24000000 28.6, #19000000 42.9, #10000000 57.1, #0A000000 71.4, #06000000 85.7, #03000000 100
+.gradient g3, LINEAR, 0, #40000000 0, #32000000 14.3, #24000000 28.6, #19000000 42.9, #10000000 57.1, #0A000000 71.4, #06000000 85.7, #03000000 100
+.gradient g4, LINEAR, 90, #40000000 0, #32000000 14.3, #24000000 28.6, #19000000 42.9, #10000000 57.1, #0A000000 71.4, #06000000 85.7, #03000000 100
+.gradient g5, LINEAR, 270, #40000000 0, #32000000 14.3, #24000000 28.6, #19000000 42.9, #10000000 57.1, #0A000000 71.4, #06000000 85.7, #03000000 100
+.gradient g6, LINEAR, 180, #0D000000 0, #0A000000 25, #07000000 50, #04000000 75, #02000000 100
+.gradient g7, RADIAL, 100, -200, 100, 300, #1A000000 0, #1A000000 11.1, #19000000 22.2, #18000000 33.3, #15000000 44.4, #12000000 55.6, #0D000000 66.7, #09000000 77.8, #05000000 88.9, #00000000 100
+.gradient g8, RADIAL, 0, -200, 100, 300, #1A000000 0, #1A000000 11.1, #19000000 22.2, #18000000 33.3, #15000000 44.4, #12000000 55.6, #0D000000 66.7, #09000000 77.8, #05000000 88.9, #00000000 100
+.gradient g9, LINEAR, 180, #18000000 0, #16000000 14.3, #12000000 28.6, #0F000000 42.9, #0B000000 57.1, #08000000 71.4, #05000000 85.7, #03000000 100
+.gradient g10, LINEAR, 270, #0A000000 0, #09000000 16.7, #07000000 33.3, #06000000 50, #05000000 66.7, #04000000 83.3, #03000000 100
+.gradient g11, LINEAR, 90, #0A000000 0, #09000000 16.7, #07000000 33.3, #06000000 50, #05000000 66.7, #04000000 83.3, #03000000 100
+.gradient g12, RADIAL, 300, 100, 300, 100, #1A000000 0, #18000000 11.1, #16000000 22.2, #13000000 33.3, #10000000 44.4, #0D000000 55.6, #0A000000 66.7, #07000000 77.8, #05000000 88.9, #00000000 100
+.gradient g13, RADIAL, -200, 100, 300, 100, #1A000000 0, #18000000 11.1, #16000000 22.2, #13000000 33.3, #10000000 44.4, #0D000000 55.6, #0A000000 66.7, #07000000 77.8, #05000000 88.9, #00000000 100
+.gradient g14, RADIAL, 100, -13, 100, 113, #1A000000 0, #18000000 11.1, #16000000 22.2, #13000000 33.3, #10000000 44.4, #0D000000 55.6, #0A000000 66.7, #07000000 77.8, #05000000 88.9, #00000000 100
+.gradient g15, RADIAL, 300, 0, 300, 900, #1A000000 0, #18000000 11.1, #16000000 22.2, #13000000 33.3, #10000000 44.4, #0D000000 55.6, #0A000000 66.7, #07000000 77.8, #05000000 88.9, #00000000 100
+.gradient g16, RADIAL, 0, -13, 100, 113, #1A000000 0, #18000000 11.1, #16000000 22.2, #13000000 33.3, #10000000 44.4, #0D000000 55.6, #0A000000 66.7, #07000000 77.8, #05000000 88.9, #00000000 100
+.gradient g17, RADIAL, -200, 0, 300, 900, #1A000000 0, #18000000 11.1, #16000000 22.2, #13000000 33.3, #10000000 44.4, #0D000000 55.6, #0A000000 66.7, #07000000 77.8, #05000000 88.9, #00000000 100
+.gradient g18, LINEAR, 135, #4B5563 0, #1F2937 100
+.gradient g19, LINEAR, 180, #0B000000 0, #09000000 25, #07000000 50, #04000000 75, #02000000 100
+.gradient g20, LINEAR, 90, #07000000 0, #04000000 50, #02000000 100
+.gradient g21, LINEAR, 270, #07000000 0, #04000000 50, #02000000 100
+.gradient g22, LINEAR, 135, #3B82F6 0, #0891B2 100
+.gradient g23, LINEAR, 135, #A855F7 0, #DB2777 100
+.gradient g24, LINEAR, 135, #10B981 0, #16A34A 100
+.gradient g25, LINEAR, 135, #6366F1 0, #2563EB 100
+.gradient g26, RADIAL, 50, 50, 50, 50, #2CFACC15 0, #2BFACC15 9.1, #2AFACC15 18.2, #27FACC15 27.3, #23FACC15 36.4, #1EFACC15 45.5, #18FACC15 54.6, #13FACC15 63.6, #0EFACC15 72.7, #0AFACC15 81.8, #06FACC15 90.9, #00FACC15 100
+.gradient g27, LINEAR, 180, #0D000000 0, #08000000 33.3, #04000000 66.7, #02000000 100
+.gradient g28, LINEAR, 270, #04000000 0, #02000000 100
+.gradient g29, LINEAR, 90, #04000000 0, #02000000 100
+.gradient g30, RADIAL, 1300, 100, 1300, 100, #1A000000 0, #1A000000 11.1, #1A000000 22.2, #1A000000 33.3, #1A000000 44.4, #18000000 55.6, #13000000 66.7, #0C000000 77.8, #06000000 88.9, #00000000 100
+.gradient g31, RADIAL, -1200, 100, 1300, 100, #1A000000 0, #1A000000 11.1, #1A000000 22.2, #1A000000 33.3, #1A000000 44.4, #18000000 55.6, #13000000 66.7, #0C000000 77.8, #06000000 88.9, #00000000 100
+.gradient g32, RADIAL, 100, -333, 100, 433, #1A000000 0, #1A000000 11.1, #1A000000 22.2, #1A000000 33.3, #1A000000 44.4, #18000000 55.6, #13000000 66.7, #0C000000 77.8, #06000000 88.9, #00000000 100
+.gradient g33, RADIAL, 1300, 0, 1300, 130, #1A000000 0, #1A000000 11.1, #1A000000 22.2, #1A000000 33.3, #1A000000 44.4, #18000000 55.6, #13000000 66.7, #0C000000 77.8, #06000000 88.9, #00000000 100
+.gradient g34, RADIAL, 0, -333, 100, 433, #1A000000 0, #1A000000 11.1, #1A000000 22.2, #1A000000 33.3, #1A000000 44.4, #18000000 55.6, #13000000 66.7, #0C000000 77.8, #06000000 88.9, #00000000 100
+.gradient g35, RADIAL, -1200, 0, 1300, 130, #1A000000 0, #1A000000 11.1, #1A000000 22.2, #1A000000 33.3, #1A000000 44.4, #18000000 55.6, #13000000 66.7, #0C000000 77.8, #06000000 88.9, #00000000 100
+.gradient g36, LINEAR, 180, #16000000 0, #13000000 14.3, #10000000 28.6, #0D000000 42.9, #0A000000 57.1, #07000000 71.4, #04000000 85.7, #02000000 100
+.gradient g37, LINEAR, 270, #0A000000 0, #07000000 33.3, #04000000 66.7, #02000000 100
+.gradient g38, LINEAR, 90, #0A000000 0, #07000000 33.3, #04000000 66.7, #02000000 100
+.gradient g39, RADIAL, 500, 100, 500, 100, #1A000000 0, #1A000000 11.1, #1A000000 22.2, #19000000 33.3, #18000000 44.4, #15000000 55.6, #10000000 66.7, #0B000000 77.8, #06000000 88.9, #00000000 100
+.gradient g40, RADIAL, -400, 100, 500, 100, #1A000000 0, #1A000000 11.1, #1A000000 22.2, #19000000 33.3, #18000000 44.4, #15000000 55.6, #10000000 66.7, #0B000000 77.8, #06000000 88.9, #00000000 100
+.gradient g41, RADIAL, 100, -114, 100, 214, #1A000000 0, #1A000000 11.1, #1A000000 22.2, #19000000 33.3, #18000000 44.4, #15000000 55.6, #10000000 66.7, #0B000000 77.8, #06000000 88.9, #00000000 100
+.gradient g42, RADIAL, 500, 0, 500, 188, #1A000000 0, #1A000000 11.1, #1A000000 22.2, #19000000 33.3, #18000000 44.4, #15000000 55.6, #10000000 66.7, #0B000000 77.8, #06000000 88.9, #00000000 100
+.gradient g43, RADIAL, 0, -114, 100, 214, #1A000000 0, #1A000000 11.1, #1A000000 22.2, #19000000 33.3, #18000000 44.4, #15000000 55.6, #10000000 66.7, #0B000000 77.8, #06000000 88.9, #00000000 100
+.gradient g44, RADIAL, -400, 0, 500, 188, #1A000000 0, #1A000000 11.1, #1A000000 22.2, #19000000 33.3, #18000000 44.4, #15000000 55.6, #10000000 66.7, #0B000000 77.8, #06000000 88.9, #00000000 100
+.gradient g45, LINEAR, 90, #2563EB 0, #4338CA 100
+.gradient g46, LINEAR, 180, #311944 0, #2F1941 6.6, #2D183E 13.3, #2C193B 20, #2A1838 26.6, #281835 33.3, #261832 40, #25182F 46.6, #22182C 53.3, #211828 60, #201725 66.6, #1E1723 73.3, #1B1720 80, #1A171D 86.6, #18171A 93.3, #171717 100
+.gradient g47, LINEAR, 180, #4D581C87 0, #3D581C87 14.3, #2E581C87 28.6, #1F581C87 42.9, #13581C87 57.1, #0B581C87 71.4, #06581C87 85.7, #03581C87 100
+.gradient g48, LINEAR, 270, #0E581C87 0, #09581C87 25, #06581C87 50, #04581C87 75, #03581C87 100
+.gradient g49, LINEAR, 90, #0E581C87 0, #09581C87 25, #06581C87 50, #04581C87 75, #03581C87 100
+.gradient g50, RADIAL, 300, 100, 300, 100, #4D581C87 0, #41581C87 11.1, #35581C87 22.2, #28581C87 33.3, #1E581C87 44.4, #15581C87 55.6, #0E581C87 66.7, #08581C87 77.8, #05581C87 88.9, #00581C87 100
+.gradient g51, RADIAL, -200, 100, 300, 100, #4D581C87 0, #41581C87 11.1, #35581C87 22.2, #28581C87 33.3, #1E581C87 44.4, #15581C87 55.6, #0E581C87 66.7, #08581C87 77.8, #05581C87 88.9, #00581C87 100
+.gradient g52, RADIAL, 100, 0, 100, 100, #4D581C87 0, #41581C87 11.1, #35581C87 22.2, #28581C87 33.3, #1E581C87 44.4, #15581C87 55.6, #0E581C87 66.7, #08581C87 77.8, #05581C87 88.9, #00581C87 100
+.gradient g53, RADIAL, 0, 0, 100, 100, #4D581C87 0, #41581C87 11.1, #35581C87 22.2, #28581C87 33.3, #1E581C87 44.4, #15581C87 55.6, #0E581C87 66.7, #08581C87 77.8, #05581C87 88.9, #00581C87 100
+.gradient g54, LINEAR, 180, #4D581C87 0, #3D581C87 14.3, #2E581C87 28.6, #20581C87 42.9, #15581C87 57.1, #0C581C87 71.4, #07581C87 85.7, #04581C87 100
+.gradient g55, LINEAR, 270, #4D581C87 0, #3D581C87 14.3, #2E581C87 28.6, #20581C87 42.9, #15581C87 57.1, #0C581C87 71.4, #07581C87 85.7, #04581C87 100
+.gradient g56, LINEAR, 270, #2D581C87 0, #23581C87 14.3, #1A581C87 28.6, #13581C87 42.9, #0D581C87 57.1, #09581C87 71.4, #06581C87 85.7, #04581C87 100
+.gradient g57, LINEAR, 90, #4D581C87 0, #3D581C87 14.3, #2E581C87 28.6, #20581C87 42.9, #15581C87 57.1, #0C581C87 71.4, #07581C87 85.7, #04581C87 100
+.gradient g58, LINEAR, 90, #2D581C87 0, #23581C87 14.3, #1A581C87 28.6, #13581C87 42.9, #0D581C87 57.1, #09581C87 71.4, #06581C87 85.7, #04581C87 100
+.gradient g59, RADIAL, 142, 100, 142, 100, #4D581C87 0, #41581C87 11.1, #34581C87 22.2, #29581C87 33.3, #1F581C87 44.4, #16581C87 55.6, #0F581C87 66.7, #0A581C87 77.8, #06581C87 88.9, #00581C87 100
+.gradient g60, RADIAL, -42, 100, 142, 100, #4D581C87 0, #41581C87 11.1, #34581C87 22.2, #29581C87 33.3, #1F581C87 44.4, #16581C87 55.6, #0F581C87 66.7, #0A581C87 77.8, #06581C87 88.9, #00581C87 100
+.gradient g61, RADIAL, 100, 0, 100, 100, #4D581C87 0, #41581C87 11.1, #34581C87 22.2, #29581C87 33.3, #1F581C87 44.4, #16581C87 55.6, #0F581C87 66.7, #0A581C87 77.8, #06581C87 88.9, #00581C87 100
+.gradient g62, RADIAL, 0, 0, 100, 100, #4D581C87 0, #41581C87 11.1, #34581C87 22.2, #29581C87 33.3, #1F581C87 44.4, #16581C87 55.6, #0F581C87 66.7, #0A581C87 77.8, #06581C87 88.9, #00581C87 100
+.gradient g63, LINEAR, 45, #9333EA 0, #EC4899 100
+.gradient g64, RADIAL, 50, 50, 50, 50, #1A000000 0, #1A000000 9.1, #1A000000 18.2, #1A000000 27.3, #1A000000 36.4, #1A000000 45.5, #1A000000 54.6, #19000000 63.6, #17000000 72.7, #10000000 81.8, #07000000 90.9, #00000000 100
+.gradient g65, RADIAL, 50, 50, 50, 50, #1A000000 0, #1A000000 9.1, #1A000000 18.2, #19000000 27.3, #18000000 36.4, #17000000 45.5, #14000000 54.6, #11000000 63.6, #0D000000 72.7, #09000000 81.8, #05000000 90.9, #00000000 100
+.gradient g66, RADIAL, 50, 50, 50, 50, #1A000000 0, #1A000000 9.1, #1A000000 18.2, #1A000000 27.3, #1A000000 36.4, #19000000 45.5, #16000000 54.6, #11000000 63.6, #0B000000 72.7, #05000000 81.8, #02000000 90.9, #00000000 100
+.gradient g67, RADIAL, 50, 50, 50, 50, #1A000000 0, #1A000000 9.1, #1A000000 18.2, #1A000000 27.3, #19000000 36.4, #18000000 45.5, #15000000 54.6, #12000000 63.6, #0D000000 72.7, #08000000 81.8, #04000000 90.9, #00000000 100
+.gradient g68, LINEAR, 180, #3B82F6 0, #1E40AF 100
+
+.var    $timer1_on, int, 0
+.var    $timer1_due, int, 0
+.var    $timer1_left, int, 0
+.var    $currentApp, int, 0
+.var    $home_screen_alpha, int, 255
+.var    $home_screen_alpha_from, int, 0
+.var    $home_screen_alpha_to, int, 0
+.var    $home_screen_alpha_t0, int, 0
+.var    $home_screen_alpha_dur, int, 0
+.var    $home_screen_alpha_ease, int, 0
+.var    $home_screen_alpha_on, int, 0
+.var    $app_weather_y, int, 800
+.var    $app_weather_y_from, int, 0
+.var    $app_weather_y_to, int, 0
+.var    $app_weather_y_t0, int, 0
+.var    $app_weather_y_dur, int, 0
+.var    $app_weather_y_ease, int, 0
+.var    $app_weather_y_on, int, 0
+.var    $app_settings_y, int, 800
+.var    $app_settings_y_from, int, 0
+.var    $app_settings_y_to, int, 0
+.var    $app_settings_y_t0, int, 0
+.var    $app_settings_y_dur, int, 0
+.var    $app_settings_y_ease, int, 0
+.var    $app_settings_y_on, int, 0
+.var    $app_system_y, int, 800
+.var    $app_system_y_from, int, 0
+.var    $app_system_y_to, int, 0
+.var    $app_system_y_t0, int, 0
+.var    $app_system_y_dur, int, 0
+.var    $app_system_y_ease, int, 0
+.var    $app_system_y_on, int, 0
+.var    $app_music_y, int, 800
+.var    $app_music_y_from, int, 0
+.var    $app_music_y_to, int, 0
+.var    $app_music_y_t0, int, 0
+.var    $app_music_y_dur, int, 0
+.var    $app_music_y_ease, int, 0
+.var    $app_music_y_on, int, 0
+.var    $app_home_y, int, 800
+.var    $app_home_y_from, int, 0
+.var    $app_home_y_to, int, 0
+.var    $app_home_y_t0, int, 0
+.var    $app_home_y_dur, int, 0
+.var    $app_home_y_ease, int, 0
+.var    $app_home_y_on, int, 0
+.var    $app_store_y, int, 800
+.var    $app_store_y_from, int, 0
+.var    $app_store_y_to, int, 0
+.var    $app_store_y_t0, int, 0
+.var    $app_store_y_dur, int, 0
+.var    $app_store_y_ease, int, 0
+.var    $app_store_y_on, int, 0
+.var    $anim_p, int, 0
+.var    $anim_e, int, 0
+.timer  16, animate
+.timer  50, h56
+.init   h57
+
+draw:
+        FILL    g1
+        RECT    0, 0, 480, 10, g2
+        RECT    0, 790, 480, 10, g3
+        RECT    0, 10, 10, 780, g4
+        RECT    470, 10, 10, 780, g5
+        BOX     @home_screen, -3, 24, 487, 776
+        OPACITY $home_screen_alpha
+        RECT    31, 196, 424, 4, g6
+        RECT    19, 196, 12, 4, g7
+        RECT    455, 196, 12, 4, g8
+        RECT    31, 196, 424, 16, g9
+        RECT    13, 162, 6, 32, g10
+        RECT    467, 162, 6, 32, g11
+        RECT    13, 144, 6, 18, g12
+        RECT    467, 144, 6, 18, g13
+        RECT    13, 196, 18, 16, g14
+        RECT    13, 194, 6, 2, g15
+        RECT    455, 196, 18, 16, g16
+        RECT    467, 194, 6, 2, g17
+        BOX     @box2, 19, 140, 448, 56
+        ON      CLICK, h2
+        JNE     $box.pressed, 0, .g1
+        RRECT   0, 0, 448, 56, 12, #1AFFFFFF
+        RFRAME  0, 0, 448, 56, 12, 1, #33FFFFFF
+        TEXT    59, 12, 43, 18, "22°C", inter_semibold_14, #FFFFFF, LEFT|TOP
+        TEXT    59, 32, 57, 13, "Banino, PL", inter_regular_10, #B3FFFFFF, LEFT|TOP
+        TEXT    17, 17, 42, 24, "\xEF\x9B\x84", icons_solid_24, #0F000000, LEFT|TOP
+        TEXT    17, 17, 42, 24, "\xEF\x9B\x84", icons_solid_24, #1A000000, LEFT|TOP
+        TEXT    17, 16, 42, 24, "\xEF\x9B\x84", icons_solid_24, #FDE047, LEFT|TOP
+.g1:
+        JNE     $box.pressed, 1, .g2
+        BOX     @box3, 0, 0, 448, 56
+        OPACITY 204
+        RRECT   0, 0, 448, 56, 12, #1AFFFFFF
+        RFRAME  0, 0, 448, 56, 12, 1, #33FFFFFF
+        TEXT    59, 12, 43, 18, "22°C", inter_semibold_14, #FFFFFF, LEFT|TOP
+        TEXT    59, 32, 57, 13, "Banino, PL", inter_regular_10, #B3FFFFFF, LEFT|TOP
+        TEXT    17, 17, 42, 24, "\xEF\x9B\x84", icons_solid_24, #0F000000, LEFT|TOP
+        TEXT    17, 17, 42, 24, "\xEF\x9B\x84", icons_solid_24, #1A000000, LEFT|TOP
+        TEXT    17, 16, 42, 24, "\xEF\x9B\x84", icons_solid_24, #FDE047, LEFT|TOP
+        END
+.g2:
+        END
+        BOX     @box4, 19, 220, 144, 69
+        ON      CLICK, h4
+        JNE     $box.pressed, 0, .g3
+        RRECT   48, 0, 48, 48, 12, g18
+        RECT    49, 1, 46, 4, g19
+        RECT    49, 5, 2, 42, g20
+        RECT    93, 5, 2, 42, g21
+        RFRAME  48, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    62, 14, 30, 21, "\xEF\x80\x93", icons_solid_20, #E5E7EB, LEFT|TOP
+        TEXT    46, 55, 59, 13, "Ustawienia", inter_medium_10, #E6FFFFFF, LEFT|TOP
+.g3:
+        JNE     $box.pressed, 1, .g4
+        BOX     @box5, 46, 0, 59, 68
+        OPACITY 204
+        RRECT   2, 0, 48, 48, 12, g18
+        RECT    3, 1, 46, 4, g19
+        RECT    3, 5, 2, 42, g20
+        RECT    47, 5, 2, 42, g21
+        RFRAME  2, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    16, 14, 30, 21, "\xEF\x80\x93", icons_solid_20, #E5E7EB, LEFT|TOP
+        TEXT    0, 55, 59, 13, "Ustawienia", inter_medium_10, #E6FFFFFF, LEFT|TOP
+        END
+.g4:
+        END
+        BOX     @box6, 171, 220, 144, 69
+        ON      CLICK, h6
+        JNE     $box.pressed, 0, .g5
+        RRECT   48, 0, 48, 48, 12, g22
+        RECT    49, 1, 46, 4, g19
+        RECT    49, 5, 2, 42, g20
+        RECT    93, 5, 2, 42, g21
+        RFRAME  48, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    62, 14, 30, 21, "\xEF\x8B\x9B", icons_solid_20, #FFFFFF, LEFT|TOP
+        TEXT    55, 55, 41, 13, "System", inter_medium_10, #E6FFFFFF, LEFT|TOP
+.g5:
+        JNE     $box.pressed, 1, .g6
+        BOX     @box7, 48, 0, 48, 68
+        OPACITY 204
+        RRECT   0, 0, 48, 48, 12, g22
+        RECT    1, 1, 46, 4, g19
+        RECT    1, 5, 2, 42, g20
+        RECT    45, 5, 2, 42, g21
+        RFRAME  0, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    14, 14, 30, 21, "\xEF\x8B\x9B", icons_solid_20, #FFFFFF, LEFT|TOP
+        TEXT    7, 55, 41, 13, "System", inter_medium_10, #E6FFFFFF, LEFT|TOP
+        END
+.g6:
+        END
+        BOX     @box8, 323, 220, 144, 69
+        ON      CLICK, h8
+        JNE     $box.pressed, 0, .g7
+        RRECT   48, 0, 48, 48, 12, g23
+        RECT    49, 1, 46, 4, g19
+        RECT    49, 5, 2, 42, g20
+        RECT    93, 5, 2, 42, g21
+        RFRAME  48, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    62, 14, 30, 21, "\xEF\x80\x81", icons_solid_20, #FFFFFF, LEFT|TOP
+        TEXT    53, 55, 45, 13, "Muzyka", inter_medium_10, #E6FFFFFF, LEFT|TOP
+.g7:
+        JNE     $box.pressed, 1, .g8
+        BOX     @box9, 48, 0, 50, 68
+        OPACITY 204
+        RRECT   0, 0, 48, 48, 12, g23
+        RECT    1, 1, 46, 4, g19
+        RECT    1, 5, 2, 42, g20
+        RECT    45, 5, 2, 42, g21
+        RFRAME  0, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    14, 14, 30, 21, "\xEF\x80\x81", icons_solid_20, #FFFFFF, LEFT|TOP
+        TEXT    5, 55, 45, 13, "Muzyka", inter_medium_10, #E6FFFFFF, LEFT|TOP
+        END
+.g8:
+        END
+        BOX     @box10, 19, 305, 144, 69
+        ON      CLICK, h10
+        JNE     $box.pressed, 0, .g9
+        RRECT   48, 0, 48, 48, 12, g24
+        RECT    49, 1, 46, 4, g19
+        RECT    49, 5, 2, 42, g20
+        RECT    93, 5, 2, 42, g21
+        RFRAME  48, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    61, 14, 33, 21, "\xEE\x80\x92", icons_solid_20, #FFFFFF, LEFT|TOP
+        TEXT    46, 55, 59, 13, "Smart Dom", inter_medium_10, #E6FFFFFF, LEFT|TOP
+.g9:
+        JNE     $box.pressed, 1, .g10
+        BOX     @box11, 46, 0, 59, 68
+        OPACITY 204
+        RRECT   2, 0, 48, 48, 12, g24
+        RECT    3, 1, 46, 4, g19
+        RECT    3, 5, 2, 42, g20
+        RECT    47, 5, 2, 42, g21
+        RFRAME  2, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    15, 14, 33, 21, "\xEE\x80\x92", icons_solid_20, #FFFFFF, LEFT|TOP
+        TEXT    0, 55, 59, 13, "Smart Dom", inter_medium_10, #E6FFFFFF, LEFT|TOP
+        END
+.g10:
+        END
+        BOX     @box12, 171, 305, 144, 69
+        ON      CLICK, h12
+        JNE     $box.pressed, 0, .g11
+        RRECT   48, 0, 48, 48, 12, g25
+        RECT    49, 1, 46, 4, g19
+        RECT    49, 5, 2, 42, g20
+        RECT    93, 5, 2, 42, g21
+        RFRAME  48, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    60, 14, 35, 21, "\xEF\x95\x8F", icons_solid_20, #FFFFFF, LEFT|TOP
+        TEXT    59, 55, 33, 13, "Sklep", inter_medium_10, #E6FFFFFF, LEFT|TOP
+.g11:
+        JNE     $box.pressed, 1, .g12
+        BOX     @box13, 48, 0, 48, 68
+        OPACITY 204
+        RRECT   0, 0, 48, 48, 12, g25
+        RECT    1, 1, 46, 4, g19
+        RECT    1, 5, 2, 42, g20
+        RECT    45, 5, 2, 42, g21
+        RFRAME  0, 0, 48, 48, 12, 1, #1AFFFFFF
+        TEXT    12, 14, 35, 21, "\xEF\x95\x8F", icons_solid_20, #FFFFFF, LEFT|TOP
+        TEXT    11, 55, 33, 13, "Sklep", inter_medium_10, #E6FFFFFF, LEFT|TOP
+        END
+.g12:
+        END
+        RECT    31, 128, 424, 4, g6
+        RECT    19, 128, 12, 4, g7
+        RECT    455, 128, 12, 4, g8
+        RECT    31, 128, 424, 16, g9
+        RECT    13, 38, 6, 88, g10
+        RECT    467, 38, 6, 88, g11
+        RECT    13, 20, 6, 18, g12
+        RECT    467, 20, 6, 18, g13
+        RECT    13, 128, 18, 16, g14
+        RECT    13, 126, 6, 2, g15
+        RECT    455, 128, 18, 16, g16
+        RECT    467, 126, 6, 2, g17
+        RRECT   19, 16, 448, 112, 12, #1AFFFFFF
+        RFRAME  19, 16, 448, 112, 12, 1, #33FFFFFF
+        BOX     @box14, 20, 17, 446, 110
+        TEXT    167, 74, 119, 15, "Poniedziałek, 17 Lip", inter_medium_12, #CCFFFFFF, LEFT|TOP
+        CIRCLE  438, 8, 78, g26
+        TEXT    163, 18, 149, 59, "12:00", inter_bold_48_t_2_39, #0F000000, LEFT|TOP
+        TEXT    163, 20, 149, 59, "12:00", inter_bold_48_t_2_39, #12000000, LEFT|TOP
+        TEXT    163, 16, 149, 59, "12:00", inter_bold_48_t_2_39, #FFFFFF, LEFT|TOP
+        END
+        END
+        RECT    0, 0, 480, 24, #4D000000
+        TEXT    12, 5, 39, 14, "12:00", inter_semibold_11_t0_27, #FFFFFF, LEFT|TOP
+        TEXT    52, 5, 53, 14, "dmodOS", inter_medium_11, #B3FFFFFF, LEFT|TOP
+        TEXT    381, 7, 18, 11, "\xEF\x87\xAB", icons_solid_10, #E6FFFFFF, LEFT|TOP
+        TEXT    406, 6, 13, 12, "\xEF\x8A\x94", icons_brands_11, #E6FFFFFF, LEFT|TOP
+        TEXT    425, 5, 32, 14, "84%", inter_medium_11, #E6FFFFFF, LEFT|TOP
+        TEXT    454, 6, 20, 13, "\xEF\x89\x81", icons_solid_12, #E6FFFFFF, LEFT|TOP
+        BOX     @app_settings, 0, $app_settings_y, 480, 800, OPAQUE
+        FILL    #111827
+        RECT    0, 0, 480, 40, #1F2937
+        RECT    0, 39, 480, 1, #1AFFFFFF
+        BOX     @box16, 8, 4, 40, 32
+        ON      CLICK, h14
+        JNE     $box.pressed, 0, .g13
+        TEXT    15, 8, 18, 16, "\xEF\x81\x93", icons_solid_16, #60A5FA, LEFT|TOP
+.g13:
+        JNE     $box.pressed, 1, .g14
+        BOX     @box17, 15, 8, 18, 16
+        OPACITY 204
+        TEXT    0, 0, 18, 16, "\xEF\x81\x93", icons_solid_16, #60A5FA, LEFT|TOP
+        END
+.g14:
+        END
+        TEXT    56, 11, 85, 18, "Ustawienia", inter_semibold_14, #FFFFFF, LEFT|TOP
+        BOX     @box18, 0, 40, 480, 760
+        RRECT   12, 12, 456, 46, 8, #1F2937
+        RFRAME  12, 12, 456, 46, 8, 1, #0DFFFFFF
+        TEXT    25, 27, 28, 16, "\xEF\x87\xAB", icons_solid_16, #60A5FA, LEFT|TOP
+        TEXT    57, 26, 43, 18, "Wi-Fi", inter_regular_14, #FFFFFF, LEFT|TOP
+        RRECT   12, 66, 456, 46, 8, #1F2937
+        RFRAME  12, 66, 456, 46, 8, 1, #0DFFFFFF
+        TEXT    30, 81, 18, 16, "\xEF\x8A\x94", icons_brands_16, #60A5FA, LEFT|TOP
+        TEXT    57, 80, 71, 18, "Bluetooth", inter_regular_14, #FFFFFF, LEFT|TOP
+        RRECT   12, 120, 456, 46, 8, #1F2937
+        RFRAME  12, 120, 456, 46, 8, 1, #0DFFFFFF
+        TEXT    26, 135, 26, 16, "\xEE\x85\xA3", icons_solid_16, #D1D5DB, LEFT|TOP
+        TEXT    57, 134, 112, 18, "Jasność ekranu", inter_regular_14, #FFFFFF, LEFT|TOP
+        TEXT    428, 136, 34, 15, "80%", inter_regular_12, #9CA3AF, LEFT|TOP
+        RRECT   12, 182, 456, 46, 8, #1F2937
+        RFRAME  12, 182, 456, 46, 8, 1, #0DFFFFFF
+        TEXT    27, 197, 24, 16, "\xEF\x81\x9A", icons_solid_16, #D1D5DB, LEFT|TOP
+        TEXT    57, 196, 144, 18, "O systemie dmodOS", inter_regular_14, #FFFFFF, LEFT|TOP
+        TEXT    447, 199, 14, 13, "\xEF\x81\x94", icons_solid_12, #6B7280, LEFT|TOP
+        RRECT   423, 27, 32, 16, 8, #3B82F6
+        RRECT   441, 29, 12, 12, 6, #FFFFFF
+        RRECT   423, 81, 32, 16, 8, #4B5563
+        RRECT   425, 83, 12, 12, 6, #9CA3AF
+        END
+        END
+        BOX     @app_system, 0, $app_system_y, 480, 800, OPAQUE
+        FILL    #0F172A
+        RECT    0, 0, 480, 40, #1E293B
+        RECT    0, 39, 480, 1, #1AFFFFFF
+        BOX     @box20, 8, 4, 40, 32
+        ON      CLICK, h16
+        JNE     $box.pressed, 0, .g15
+        TEXT    15, 8, 18, 16, "\xEF\x81\x93", icons_solid_16, #60A5FA, LEFT|TOP
+.g15:
+        JNE     $box.pressed, 1, .g16
+        BOX     @box21, 15, 8, 18, 16
+        OPACITY 204
+        TEXT    0, 0, 18, 16, "\xEF\x81\x93", icons_solid_16, #60A5FA, LEFT|TOP
+        END
+.g16:
+        END
+        TEXT    56, 11, 124, 18, "Zasoby Systemu", inter_semibold_14, #FFFFFF, LEFT|TOP
+        TEXT    35, 57, 33, 15, "CPU", inter_regular_12, #D1D5DB, LEFT|TOP
+        TEXT    16, 58, 18, 13, "\xEF\x8B\x9B", icons_solid_12, #D1D5DB, LEFT|TOP
+        TEXT    436, 57, 35, 15, "24%", inter_bold_12, #22D3EE, LEFT|TOP
+        RRECT   16, 76, 448, 8, 4, #334155
+        RRECT   16, 76, 108, 8, 4, #06B6D4
+        TEXT    37, 101, 34, 15, "RAM", inter_regular_12, #D1D5DB, LEFT|TOP
+        TEXT    16, 102, 20, 13, "\xEF\x94\xB8", icons_solid_12, #D1D5DB, LEFT|TOP
+        TEXT    389, 101, 82, 15, "112 / 256 MB", inter_bold_12, #34D399, LEFT|TOP
+        RRECT   16, 120, 448, 8, 4, #334155
+        RRECT   16, 120, 202, 8, 4, #10B981
+        TEXT    35, 145, 37, 15, "Flash", inter_regular_12, #D1D5DB, LEFT|TOP
+        TEXT    16, 146, 18, 13, "\xEF\x82\xA0", icons_solid_12, #D1D5DB, LEFT|TOP
+        TEXT    396, 145, 75, 15, "1.2 / 4.0 GB", inter_bold_12, #C084FC, LEFT|TOP
+        RRECT   16, 164, 448, 8, 4, #334155
+        RRECT   16, 164, 134, 8, 4, #A855F7
+        TEXT    166, 768, 154, 13, "Uptime: 04:12:33 • Temp: 42°C", inter_regular_10, #64748B, LEFT|TOP
+        END
+        BOX     @app_store, 0, $app_store_y, 480, 800, OPAQUE
+        FILL    #0F172A
+        RECT    0, 0, 480, 40, #1E293B
+        RECT    0, 39, 480, 1, #1AFFFFFF
+        BOX     @box23, 8, 4, 40, 32
+        ON      CLICK, h18
+        JNE     $box.pressed, 0, .g17
+        TEXT    15, 8, 18, 16, "\xEF\x81\x93", icons_solid_16, #60A5FA, LEFT|TOP
+.g17:
+        JNE     $box.pressed, 1, .g18
+        BOX     @box24, 15, 8, 18, 16
+        OPACITY 204
+        TEXT    0, 0, 18, 16, "\xEF\x81\x93", icons_solid_16, #60A5FA, LEFT|TOP
+        END
+.g18:
+        END
+        TEXT    56, 11, 111, 18, "Sklep dmodOS", inter_semibold_14, #FFFFFF, LEFT|TOP
+        BOX     @box25, 0, 40, 480, 760
+        TEXT    12, 125, 129, 13, "POLECANE APLIKACJE", inter_semibold_10_t0_5, #9CA3AF, LEFT|TOP
+        RRECT   12, 151, 456, 58, 8, #1F2937
+        RFRAME  12, 151, 456, 58, 8, 1, #0DFFFFFF
+        RRECT   23, 162, 36, 36, 8, #F97316
+        RECT    23, 162, 36, 4, g19
+        RECT    23, 166, 2, 32, g20
+        RECT    57, 166, 2, 32, g21
+        TEXT    35, 172, 20, 16, "\xEF\x87\xAC", icons_solid_16, #FFFFFF, LEFT|TOP
+        TEXT    71, 164, 77, 18, "Kalkulator", inter_medium_14, #FFFFFF, LEFT|TOP
+        TEXT    71, 184, 49, 12, "Narzędzia", inter_regular_9, #9CA3AF, LEFT|TOP
+        RRECT   394, 167, 63, 26, 13, #2563EB
+        TEXT    406, 174, 45, 12, "POBIERZ", inter_bold_9, #FFFFFF, LEFT|TOP
+        RRECT   12, 221, 456, 58, 8, #1F2937
+        RFRAME  12, 221, 456, 58, 8, 1, #0DFFFFFF
+        RRECT   23, 232, 36, 36, 8, #22C55E
+        RECT    23, 232, 36, 4, g19
+        RECT    23, 236, 2, 32, g20
+        RECT    57, 236, 2, 32, g21
+        TEXT    33, 242, 24, 16, "\xEF\x89\xBA", icons_solid_16, #FFFFFF, LEFT|TOP
+        TEXT    71, 234, 82, 18, "Chat dmod", inter_medium_14, #FFFFFF, LEFT|TOP
+        TEXT    71, 254, 59, 12, "Komunikacja", inter_regular_9, #9CA3AF, LEFT|TOP
+        RRECT   392, 237, 65, 26, 13, #1AFFFFFF
+        TEXT    404, 244, 47, 12, "OTWÓRZ", inter_bold_9, #FFFFFF, LEFT|TOP
+        RECT    24, 108, 432, 3, g27
+        RECT    11, 26, 1, 72, g28
+        RECT    468, 26, 1, 72, g29
+        RECT    11, 13, 1, 13, g30
+        RECT    468, 13, 1, 13, g31
+        RECT    11, 108, 13, 3, g32
+        RECT    11, 98, 1, 10, g33
+        RECT    456, 108, 13, 3, g34
+        RECT    468, 98, 1, 10, g35
+        RECT    24, 108, 432, 7, g36
+        RECT    9, 28, 3, 72, g37
+        RECT    468, 28, 3, 72, g38
+        RECT    9, 13, 3, 15, g39
+        RECT    468, 13, 3, 15, g40
+        RECT    9, 108, 15, 7, g41
+        RECT    9, 100, 3, 8, g42
+        RECT    456, 108, 15, 7, g43
+        RECT    468, 100, 3, 8, g44
+        RRECT   12, 12, 456, 96, 12, g45
+        BOX     @box26, 12, 12, 456, 96
+        TEXT    12, 50, 74, 18, "Gry Retro", inter_bold_14, #FFFFFF, LEFT|TOP
+        TEXT    12, 70, 134, 13, "Odkryj nowości w dmodOS", inter_regular_10, #B3FFFFFF, LEFT|TOP
+        TEXT    388, 8, 84, 48, "\xEF\x84\x9B", icons_solid_48, #33FFFFFF, LEFT|TOP
+        END
+        END
+        END
+        BOX     @app_music, 0, $app_music_y, 480, 800, OPAQUE
+        FILL    g46
+        BOX     @box28, 8, 4, 40, 32
+        ON      CLICK, h20
+        JNE     $box.pressed, 0, .g19
+        TEXT    15, 8, 18, 16, "\xEF\x81\x93", icons_solid_16, #FFFFFF, LEFT|TOP
+.g19:
+        JNE     $box.pressed, 1, .g20
+        BOX     @box29, 15, 8, 18, 16
+        OPACITY 204
+        TEXT    0, 0, 18, 16, "\xEF\x81\x93", icons_solid_16, #FFFFFF, LEFT|TOP
+        END
+.g20:
+        END
+        RECT    184, 363, 112, 12, g47
+        RECT    172, 251, 4, 112, g48
+        RECT    304, 251, 4, 112, g49
+        RECT    172, 239, 4, 12, g50
+        RECT    304, 239, 4, 12, g51
+        RECT    172, 363, 12, 12, g52
+        RECT    296, 363, 12, 12, g53
+        RECT    184, 363, 112, 12, #4D581C87
+        RECT    184, 375, 112, 27, g54
+        RECT    157, 363, 27, 12, g55
+        RECT    157, 263, 19, 100, g56
+        RECT    296, 363, 27, 12, g57
+        RECT    304, 263, 19, 100, g58
+        RECT    157, 236, 19, 27, g59
+        RECT    304, 236, 19, 27, g60
+        RECT    157, 375, 27, 27, g61
+        RECT    296, 375, 27, 27, g62
+        RRECT   176, 235, 128, 128, 8, g63
+        RFRAME  176, 235, 128, 128, 8, 1, #1AFFFFFF
+        TEXT    210, 269, 90, 61, "\xEF\x94\x9F", icons_solid_60, #80FFFFFF, LEFT|TOP
+        TEXT    165, 390, 162, 23, "Retro Synthwave", inter_bold_18, #FFFFFF, LEFT|TOP
+        TEXT    191, 416, 105, 15, "Artysta Nieznany", inter_regular_12, #9CA3AF, LEFT|TOP
+        TEXT    24, 464, 24, 12, "1:24", inter_regular_9, #9CA3AF, LEFT|TOP
+        TEXT    436, 464, 26, 12, "3:45", inter_regular_9, #9CA3AF, LEFT|TOP
+        TEXT    169, 519, 20, 19, "\xEF\x81\x88", icons_solid_18, #D1D5DB, LEFT|TOP
+        CIRCLE  240, 533, 28, g64
+        CIRCLE  240, 539, 33, g65
+        RRECT   212, 501, 56, 56, 28, #FFFFFF
+        TEXT    235, 518, 25, 21, "\xEF\x81\x8B", icons_solid_20, #000000, LEFT|TOP
+        TEXT    300, 519, 20, 19, "\xEF\x81\x91", icons_solid_18, #D1D5DB, LEFT|TOP
+        RRECT   50, 467, 378, 6, 3, #374151
+        RRECT   50, 467, 126, 6, 3, #A855F7
+        CIRCLE  170, 471, 7, g66
+        CIRCLE  170, 471, 8, g67
+        RRECT   164, 464, 12, 12, 6, #FFFFFF
+        END
+        BOX     @app_home, 0, $app_home_y, 480, 800, OPAQUE
+        FILL    #18181B
+        RECT    0, 0, 480, 40, #27272A
+        RECT    0, 39, 480, 1, #1AFFFFFF
+        BOX     @box31, 8, 4, 40, 32
+        ON      CLICK, h22
+        JNE     $box.pressed, 0, .g21
+        TEXT    15, 8, 18, 16, "\xEF\x81\x93", icons_solid_16, #4ADE80, LEFT|TOP
+.g21:
+        JNE     $box.pressed, 1, .g22
+        BOX     @box32, 15, 8, 18, 16
+        OPACITY 204
+        TEXT    0, 0, 18, 16, "\xEF\x81\x93", icons_solid_16, #4ADE80, LEFT|TOP
+        END
+.g22:
+        END
+        TEXT    56, 11, 86, 18, "Smart Dom", inter_semibold_14, #FFFFFF, LEFT|TOP
+        BOX     @box33, 0, 40, 480, 760
+        RRECT   12, 12, 222, 101, 12, #3316A34A
+        RFRAME  12, 12, 222, 101, 12, 1, #4D22C55E
+        TEXT    25, 29, 30, 24, "\xEF\x83\xAB", icons_solid_24, #4ADE80, LEFT|TOP
+        TEXT    25, 66, 48, 18, "Salon", inter_bold_14, #FFFFFF, LEFT|TOP
+        TEXT    25, 86, 32, 13, "100%", inter_regular_10, #4ADE80, LEFT|TOP
+        RRECT   246, 12, 222, 101, 12, #27272A
+        RFRAME  246, 12, 222, 101, 12, 1, #0DFFFFFF
+        TEXT    259, 29, 30, 24, "\xEF\x83\xAB", icons_solid_24, #9CA3AF, LEFT|TOP
+        TEXT    259, 66, 66, 18, "Kuchnia", inter_bold_14, #FFFFFF, LEFT|TOP
+        TEXT    259, 86, 27, 13, "Wył.", inter_regular_10, #6B7280, LEFT|TOP
+        RRECT   12, 125, 222, 101, 12, #27272A
+        RFRAME  12, 125, 222, 101, 12, 1, #0DFFFFFF
+        TEXT    25, 142, 27, 24, "\xEF\x8B\x89", icons_solid_24, #FB923C, LEFT|TOP
+        TEXT    25, 179, 50, 18, "Term.", inter_bold_14, #FFFFFF, LEFT|TOP
+        TEXT    25, 199, 37, 13, "21.5°C", inter_regular_10, #9CA3AF, LEFT|TOP
+        RRECT   246, 125, 222, 101, 12, #27272A
+        RFRAME  246, 125, 222, 101, 12, 1, #0DFFFFFF
+        TEXT    259, 142, 33, 24, "\xEF\x80\xA3", icons_solid_24, #F87171, LEFT|TOP
+        TEXT    259, 179, 49, 18, "Drzwi", inter_bold_14, #FFFFFF, LEFT|TOP
+        TEXT    259, 199, 38, 13, "Zamek", inter_regular_10, #F87171, LEFT|TOP
+        END
+        END
+        BOX     @app_weather, 0, $app_weather_y, 480, 800, OPAQUE
+        FILL    g68
+        TEXT    172, 344, 173, 74, "22°C", inter_bold_60_t_3, #FFFFFF, LEFT|TOP
+        RECT    0, 491, 480, 1, #33FFFFFF
+        TEXT    65, 522, 53, 15, "14 km/h", inter_semibold_12, #FFFFFF, LEFT|TOP
+        TEXT    226, 522, 35, 15, "65%", inter_semibold_12, #FFFFFF, LEFT|TOP
+        TEXT    376, 522, 40, 15, "0 mm", inter_semibold_12, #FFFFFF, LEFT|TOP
+        TEXT    195, 267, 126, 72, "\xEF\x9B\x84", icons_solid_72, #1A000000, LEFT|TOP
+        TEXT    195, 273, 126, 72, "\xEF\x9B\x84", icons_solid_72, #0A000000, LEFT|TOP
+        TEXT    195, 263, 126, 72, "\xEF\x9B\x84", icons_solid_72, #FDE047, LEFT|TOP
+        BOX     @box35, 194, 420, 102, 18
+        OPACITY 204
+        TEXT    0, 0, 102, 18, "BANINO, PL", inter_medium_14_t1_39, #FFFFFF, LEFT|TOP
+        END
+        BOX     @box36, 166, 443, 155, 15
+        OPACITY 230
+        TEXT    0, 0, 155, 15, "Częściowe zachmurzenie", inter_regular_12, #FFFFFF, LEFT|TOP
+        END
+        BOX     @box37, 77, 509, 28, 12
+        OPACITY 179
+        TEXT    0, 0, 28, 12, "Wiatr", inter_regular_9, #FFFFFF, LEFT|TOP
+        END
+        BOX     @box38, 225, 509, 36, 12
+        OPACITY 179
+        TEXT    0, 0, 36, 12, "Wilgot.", inter_regular_9, #FFFFFF, LEFT|TOP
+        END
+        BOX     @box39, 377, 509, 37, 12
+        OPACITY 179
+        TEXT    0, 0, 37, 12, "Deszcz", inter_regular_9, #FFFFFF, LEFT|TOP
+        END
+        BOX     @box40, 8, 4, 40, 32
+        ON      CLICK, h24
+        JNE     $box.pressed, 0, .g23
+        TEXT    15, 8, 18, 16, "\xEF\x81\x93", icons_solid_16, #FFFFFF, LEFT|TOP
+.g23:
+        JNE     $box.pressed, 1, .g24
+        BOX     @box41, 15, 8, 18, 16
+        OPACITY 204
+        TEXT    0, 0, 18, 16, "\xEF\x81\x93", icons_solid_16, #FFFFFF, LEFT|TOP
+        END
+.g24:
+        END
+        END
+        RET
+
+h1:
+        RET
+
+h2:
+        CALL    h29
+        CALL    h28
+        CALL    h30
+        SET     $currentApp, 16
+        RET
+
+h3:
+        CALL    h29
+        CALL    h28
+        CALL    h30
+        SET     $currentApp, 16
+        RET
+
+h4:
+        CALL    h33
+        CALL    h32
+        CALL    h34
+        SET     $currentApp, 19
+        RET
+
+h5:
+        CALL    h33
+        CALL    h32
+        CALL    h34
+        SET     $currentApp, 19
+        RET
+
+h6:
+        CALL    h37
+        CALL    h36
+        CALL    h38
+        SET     $currentApp, 21
+        RET
+
+h7:
+        CALL    h37
+        CALL    h36
+        CALL    h38
+        SET     $currentApp, 21
+        RET
+
+h8:
+        CALL    h41
+        CALL    h40
+        CALL    h42
+        SET     $currentApp, 23
+        RET
+
+h9:
+        CALL    h41
+        CALL    h40
+        CALL    h42
+        SET     $currentApp, 23
+        RET
+
+h10:
+        CALL    h45
+        CALL    h44
+        CALL    h46
+        SET     $currentApp, 25
+        RET
+
+h11:
+        CALL    h45
+        CALL    h44
+        CALL    h46
+        SET     $currentApp, 25
+        RET
+
+h12:
+        CALL    h49
+        CALL    h48
+        CALL    h50
+        SET     $currentApp, 27
+        RET
+
+h13:
+        CALL    h49
+        CALL    h48
+        CALL    h50
+        SET     $currentApp, 27
+        RET
+
+h14:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h15:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h16:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h17:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h18:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h19:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h20:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h21:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h22:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h23:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h24:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h25:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h26:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h27:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h28:
+        SET     $home_screen_alpha_from, $home_screen_alpha
+        SET     $home_screen_alpha_to, 77
+        SET     $home_screen_alpha_t0, $time
+        SET     $home_screen_alpha_dur, 300
+        SET     $home_screen_alpha_ease, 1
+        SET     $home_screen_alpha_on, 1
+        RET
+
+h29:
+        SET     $app_weather_y_from, $app_weather_y
+        SET     $app_weather_y_to, 0
+        SET     $app_weather_y_t0, $time
+        SET     $app_weather_y_dur, 300
+        SET     $app_weather_y_ease, 2
+        SET     $app_weather_y_on, 1
+        RET
+
+h30:
+        SET     $home_screen_alpha_from, $home_screen_alpha
+        SET     $home_screen_alpha_to, 255
+        SET     $home_screen_alpha_t0, $time
+        SET     $home_screen_alpha_dur, 300
+        SET     $home_screen_alpha_ease, 1
+        SET     $home_screen_alpha_on, 1
+        RET
+
+h31:
+        CALL    h29
+        CALL    h28
+        CALL    h30
+        SET     $currentApp, 16
+        RET
+
+h32:
+        SET     $home_screen_alpha_from, $home_screen_alpha
+        SET     $home_screen_alpha_to, 77
+        SET     $home_screen_alpha_t0, $time
+        SET     $home_screen_alpha_dur, 300
+        SET     $home_screen_alpha_ease, 1
+        SET     $home_screen_alpha_on, 1
+        RET
+
+h33:
+        SET     $app_settings_y_from, $app_settings_y
+        SET     $app_settings_y_to, 0
+        SET     $app_settings_y_t0, $time
+        SET     $app_settings_y_dur, 300
+        SET     $app_settings_y_ease, 2
+        SET     $app_settings_y_on, 1
+        RET
+
+h34:
+        SET     $home_screen_alpha_from, $home_screen_alpha
+        SET     $home_screen_alpha_to, 255
+        SET     $home_screen_alpha_t0, $time
+        SET     $home_screen_alpha_dur, 300
+        SET     $home_screen_alpha_ease, 1
+        SET     $home_screen_alpha_on, 1
+        RET
+
+h35:
+        CALL    h33
+        CALL    h32
+        CALL    h34
+        SET     $currentApp, 19
+        RET
+
+h36:
+        SET     $home_screen_alpha_from, $home_screen_alpha
+        SET     $home_screen_alpha_to, 77
+        SET     $home_screen_alpha_t0, $time
+        SET     $home_screen_alpha_dur, 300
+        SET     $home_screen_alpha_ease, 1
+        SET     $home_screen_alpha_on, 1
+        RET
+
+h37:
+        SET     $app_system_y_from, $app_system_y
+        SET     $app_system_y_to, 0
+        SET     $app_system_y_t0, $time
+        SET     $app_system_y_dur, 300
+        SET     $app_system_y_ease, 2
+        SET     $app_system_y_on, 1
+        RET
+
+h38:
+        SET     $home_screen_alpha_from, $home_screen_alpha
+        SET     $home_screen_alpha_to, 255
+        SET     $home_screen_alpha_t0, $time
+        SET     $home_screen_alpha_dur, 300
+        SET     $home_screen_alpha_ease, 1
+        SET     $home_screen_alpha_on, 1
+        RET
+
+h39:
+        CALL    h37
+        CALL    h36
+        CALL    h38
+        SET     $currentApp, 21
+        RET
+
+h40:
+        SET     $home_screen_alpha_from, $home_screen_alpha
+        SET     $home_screen_alpha_to, 77
+        SET     $home_screen_alpha_t0, $time
+        SET     $home_screen_alpha_dur, 300
+        SET     $home_screen_alpha_ease, 1
+        SET     $home_screen_alpha_on, 1
+        RET
+
+h41:
+        SET     $app_music_y_from, $app_music_y
+        SET     $app_music_y_to, 0
+        SET     $app_music_y_t0, $time
+        SET     $app_music_y_dur, 300
+        SET     $app_music_y_ease, 2
+        SET     $app_music_y_on, 1
+        RET
+
+h42:
+        SET     $home_screen_alpha_from, $home_screen_alpha
+        SET     $home_screen_alpha_to, 255
+        SET     $home_screen_alpha_t0, $time
+        SET     $home_screen_alpha_dur, 300
+        SET     $home_screen_alpha_ease, 1
+        SET     $home_screen_alpha_on, 1
+        RET
+
+h43:
+        CALL    h41
+        CALL    h40
+        CALL    h42
+        SET     $currentApp, 23
+        RET
+
+h44:
+        SET     $home_screen_alpha_from, $home_screen_alpha
+        SET     $home_screen_alpha_to, 77
+        SET     $home_screen_alpha_t0, $time
+        SET     $home_screen_alpha_dur, 300
+        SET     $home_screen_alpha_ease, 1
+        SET     $home_screen_alpha_on, 1
+        RET
+
+h45:
+        SET     $app_home_y_from, $app_home_y
+        SET     $app_home_y_to, 0
+        SET     $app_home_y_t0, $time
+        SET     $app_home_y_dur, 300
+        SET     $app_home_y_ease, 2
+        SET     $app_home_y_on, 1
+        RET
+
+h46:
+        SET     $home_screen_alpha_from, $home_screen_alpha
+        SET     $home_screen_alpha_to, 255
+        SET     $home_screen_alpha_t0, $time
+        SET     $home_screen_alpha_dur, 300
+        SET     $home_screen_alpha_ease, 1
+        SET     $home_screen_alpha_on, 1
+        RET
+
+h47:
+        CALL    h45
+        CALL    h44
+        CALL    h46
+        SET     $currentApp, 25
+        RET
+
+h48:
+        SET     $home_screen_alpha_from, $home_screen_alpha
+        SET     $home_screen_alpha_to, 77
+        SET     $home_screen_alpha_t0, $time
+        SET     $home_screen_alpha_dur, 300
+        SET     $home_screen_alpha_ease, 1
+        SET     $home_screen_alpha_on, 1
+        RET
+
+h49:
+        SET     $app_store_y_from, $app_store_y
+        SET     $app_store_y_to, 0
+        SET     $app_store_y_t0, $time
+        SET     $app_store_y_dur, 300
+        SET     $app_store_y_ease, 2
+        SET     $app_store_y_on, 1
+        RET
+
+h50:
+        SET     $home_screen_alpha_from, $home_screen_alpha
+        SET     $home_screen_alpha_to, 255
+        SET     $home_screen_alpha_t0, $time
+        SET     $home_screen_alpha_dur, 300
+        SET     $home_screen_alpha_ease, 1
+        SET     $home_screen_alpha_on, 1
+        RET
+
+h51:
+        CALL    h49
+        CALL    h48
+        CALL    h50
+        SET     $currentApp, 27
+        RET
+
+h52:
+        JNE     $currentApp, 27, .i1
+        SET     $app_store_y_from, $app_store_y
+        SET     $app_store_y_to, 800
+        SET     $app_store_y_t0, $time
+        SET     $app_store_y_dur, 300
+        SET     $app_store_y_ease, 2
+        SET     $app_store_y_on, 1
+.i1:
+        JNE     $currentApp, 25, .i2
+        SET     $app_home_y_from, $app_home_y
+        SET     $app_home_y_to, 800
+        SET     $app_home_y_t0, $time
+        SET     $app_home_y_dur, 300
+        SET     $app_home_y_ease, 2
+        SET     $app_home_y_on, 1
+.i2:
+        JNE     $currentApp, 23, .i3
+        SET     $app_music_y_from, $app_music_y
+        SET     $app_music_y_to, 800
+        SET     $app_music_y_t0, $time
+        SET     $app_music_y_dur, 300
+        SET     $app_music_y_ease, 2
+        SET     $app_music_y_on, 1
+.i3:
+        JNE     $currentApp, 21, .i4
+        SET     $app_system_y_from, $app_system_y
+        SET     $app_system_y_to, 800
+        SET     $app_system_y_t0, $time
+        SET     $app_system_y_dur, 300
+        SET     $app_system_y_ease, 2
+        SET     $app_system_y_on, 1
+.i4:
+        JNE     $currentApp, 19, .i5
+        SET     $app_settings_y_from, $app_settings_y
+        SET     $app_settings_y_to, 800
+        SET     $app_settings_y_t0, $time
+        SET     $app_settings_y_dur, 300
+        SET     $app_settings_y_ease, 2
+        SET     $app_settings_y_on, 1
+.i5:
+        JNE     $currentApp, 16, .i6
+        SET     $app_weather_y_from, $app_weather_y
+        SET     $app_weather_y_to, 800
+        SET     $app_weather_y_t0, $time
+        SET     $app_weather_y_dur, 300
+        SET     $app_weather_y_ease, 2
+        SET     $app_weather_y_on, 1
+.i6:
+        RET
+
+h53:
+        SET     $home_screen_alpha_from, $home_screen_alpha
+        SET     $home_screen_alpha_to, 255
+        SET     $home_screen_alpha_t0, $time
+        SET     $home_screen_alpha_dur, 300
+        SET     $home_screen_alpha_ease, 1
+        SET     $home_screen_alpha_on, 1
+        RET
+
+h54:
+        SET     $home_screen_alpha_from, $home_screen_alpha
+        SET     $home_screen_alpha_to, 255
+        SET     $home_screen_alpha_t0, $time
+        SET     $home_screen_alpha_dur, 300
+        SET     $home_screen_alpha_ease, 1
+        SET     $home_screen_alpha_on, 1
+        RET
+
+h55:
+        JEQ     $currentApp, 0, .i1
+        CALL    h52
+        CALL    h53
+        CALL    h54
+        SET     $currentApp, 0
+.i1:
+        RET
+
+h56:
+        JEQ     $timer1_on, 0, .i1
+        SET     $timer1_left, $timer1_due
+        SUB     $timer1_left, $time
+        JGT     $timer1_left, 0, .i2
+        ADD     $timer1_due, 10000
+        CALL    h1
+.i2:
+.i1:
+        RET
+
+h57:
+        SET     $timer1_due, $time
+        ADD     $timer1_due, 10000
+        SET     $timer1_on, 1
+        RET
+
+h58:
+        SET     $app_store_y_from, $app_store_y
+        SET     $app_store_y_to, 800
+        SET     $app_store_y_t0, $time
+        SET     $app_store_y_dur, 300
+        SET     $app_store_y_ease, 2
+        SET     $app_store_y_on, 1
+        RET
+
+h59:
+        SET     $app_home_y_from, $app_home_y
+        SET     $app_home_y_to, 800
+        SET     $app_home_y_t0, $time
+        SET     $app_home_y_dur, 300
+        SET     $app_home_y_ease, 2
+        SET     $app_home_y_on, 1
+        RET
+
+h60:
+        SET     $app_music_y_from, $app_music_y
+        SET     $app_music_y_to, 800
+        SET     $app_music_y_t0, $time
+        SET     $app_music_y_dur, 300
+        SET     $app_music_y_ease, 2
+        SET     $app_music_y_on, 1
+        RET
+
+h61:
+        SET     $app_system_y_from, $app_system_y
+        SET     $app_system_y_to, 800
+        SET     $app_system_y_t0, $time
+        SET     $app_system_y_dur, 300
+        SET     $app_system_y_ease, 2
+        SET     $app_system_y_on, 1
+        RET
+
+h62:
+        SET     $app_settings_y_from, $app_settings_y
+        SET     $app_settings_y_to, 800
+        SET     $app_settings_y_t0, $time
+        SET     $app_settings_y_dur, 300
+        SET     $app_settings_y_ease, 2
+        SET     $app_settings_y_on, 1
+        RET
+
+h63:
+        SET     $app_weather_y_from, $app_weather_y
+        SET     $app_weather_y_to, 800
+        SET     $app_weather_y_t0, $time
+        SET     $app_weather_y_dur, 300
+        SET     $app_weather_y_ease, 2
+        SET     $app_weather_y_on, 1
+        RET
+
+; Every running animation one frame further: progress 0 ... 1000, eased
+animate:
+        JEQ     $home_screen_alpha_on, 0, .n4
+        SET     $anim_p, $time
+        SUB     $anim_p, $home_screen_alpha_t0
+        MUL     $anim_p, 1000
+        DIV     $anim_p, $home_screen_alpha_dur
+        CLAMP   $anim_p, 0, 1000
+        JNE     $home_screen_alpha_ease, 1, .e4_1
+        CALL    ease1
+.e4_1:
+        JNE     $home_screen_alpha_ease, 2, .e4_2
+        CALL    ease2
+.e4_2:
+        SET     $home_screen_alpha, $home_screen_alpha_to
+        SUB     $home_screen_alpha, $home_screen_alpha_from
+        MUL     $home_screen_alpha, $anim_e
+        DIV     $home_screen_alpha, 1000
+        ADD     $home_screen_alpha, $home_screen_alpha_from
+        JLT     $anim_p, 1000, .n4
+        SET     $home_screen_alpha_on, 0
+.n4:
+        JEQ     $app_weather_y_on, 0, .n5
+        SET     $anim_p, $time
+        SUB     $anim_p, $app_weather_y_t0
+        MUL     $anim_p, 1000
+        DIV     $anim_p, $app_weather_y_dur
+        CLAMP   $anim_p, 0, 1000
+        JNE     $app_weather_y_ease, 1, .e5_1
+        CALL    ease1
+.e5_1:
+        JNE     $app_weather_y_ease, 2, .e5_2
+        CALL    ease2
+.e5_2:
+        SET     $app_weather_y, $app_weather_y_to
+        SUB     $app_weather_y, $app_weather_y_from
+        MUL     $app_weather_y, $anim_e
+        DIV     $app_weather_y, 1000
+        ADD     $app_weather_y, $app_weather_y_from
+        JLT     $anim_p, 1000, .n5
+        SET     $app_weather_y_on, 0
+.n5:
+        JEQ     $app_settings_y_on, 0, .n6
+        SET     $anim_p, $time
+        SUB     $anim_p, $app_settings_y_t0
+        MUL     $anim_p, 1000
+        DIV     $anim_p, $app_settings_y_dur
+        CLAMP   $anim_p, 0, 1000
+        JNE     $app_settings_y_ease, 1, .e6_1
+        CALL    ease1
+.e6_1:
+        JNE     $app_settings_y_ease, 2, .e6_2
+        CALL    ease2
+.e6_2:
+        SET     $app_settings_y, $app_settings_y_to
+        SUB     $app_settings_y, $app_settings_y_from
+        MUL     $app_settings_y, $anim_e
+        DIV     $app_settings_y, 1000
+        ADD     $app_settings_y, $app_settings_y_from
+        JLT     $anim_p, 1000, .n6
+        SET     $app_settings_y_on, 0
+.n6:
+        JEQ     $app_system_y_on, 0, .n7
+        SET     $anim_p, $time
+        SUB     $anim_p, $app_system_y_t0
+        MUL     $anim_p, 1000
+        DIV     $anim_p, $app_system_y_dur
+        CLAMP   $anim_p, 0, 1000
+        JNE     $app_system_y_ease, 1, .e7_1
+        CALL    ease1
+.e7_1:
+        JNE     $app_system_y_ease, 2, .e7_2
+        CALL    ease2
+.e7_2:
+        SET     $app_system_y, $app_system_y_to
+        SUB     $app_system_y, $app_system_y_from
+        MUL     $app_system_y, $anim_e
+        DIV     $app_system_y, 1000
+        ADD     $app_system_y, $app_system_y_from
+        JLT     $anim_p, 1000, .n7
+        SET     $app_system_y_on, 0
+.n7:
+        JEQ     $app_music_y_on, 0, .n8
+        SET     $anim_p, $time
+        SUB     $anim_p, $app_music_y_t0
+        MUL     $anim_p, 1000
+        DIV     $anim_p, $app_music_y_dur
+        CLAMP   $anim_p, 0, 1000
+        JNE     $app_music_y_ease, 1, .e8_1
+        CALL    ease1
+.e8_1:
+        JNE     $app_music_y_ease, 2, .e8_2
+        CALL    ease2
+.e8_2:
+        SET     $app_music_y, $app_music_y_to
+        SUB     $app_music_y, $app_music_y_from
+        MUL     $app_music_y, $anim_e
+        DIV     $app_music_y, 1000
+        ADD     $app_music_y, $app_music_y_from
+        JLT     $anim_p, 1000, .n8
+        SET     $app_music_y_on, 0
+.n8:
+        JEQ     $app_home_y_on, 0, .n9
+        SET     $anim_p, $time
+        SUB     $anim_p, $app_home_y_t0
+        MUL     $anim_p, 1000
+        DIV     $anim_p, $app_home_y_dur
+        CLAMP   $anim_p, 0, 1000
+        JNE     $app_home_y_ease, 1, .e9_1
+        CALL    ease1
+.e9_1:
+        JNE     $app_home_y_ease, 2, .e9_2
+        CALL    ease2
+.e9_2:
+        SET     $app_home_y, $app_home_y_to
+        SUB     $app_home_y, $app_home_y_from
+        MUL     $app_home_y, $anim_e
+        DIV     $app_home_y, 1000
+        ADD     $app_home_y, $app_home_y_from
+        JLT     $anim_p, 1000, .n9
+        SET     $app_home_y_on, 0
+.n9:
+        JEQ     $app_store_y_on, 0, .n10
+        SET     $anim_p, $time
+        SUB     $anim_p, $app_store_y_t0
+        MUL     $anim_p, 1000
+        DIV     $anim_p, $app_store_y_dur
+        CLAMP   $anim_p, 0, 1000
+        JNE     $app_store_y_ease, 1, .e10_1
+        CALL    ease1
+.e10_1:
+        JNE     $app_store_y_ease, 2, .e10_2
+        CALL    ease2
+.e10_2:
+        SET     $app_store_y, $app_store_y_to
+        SUB     $app_store_y, $app_store_y_from
+        MUL     $app_store_y, $anim_e
+        DIV     $app_store_y, 1000
+        ADD     $app_store_y, $app_store_y_from
+        JLT     $anim_p, 1000, .n10
+        SET     $app_store_y_on, 0
+.n10:
+        RET
+
+; cubic-bezier(400, 0, 200, 1000) / 1000: $anim_p -> $anim_e
+ease1:
+        JGE     $anim_p, 62, .s0
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 0
+        MUL     $anim_e, 9
+        DIV     $anim_e, 62
+        ADD     $anim_e, 0
+        RET
+.s0:
+        JGE     $anim_p, 125, .s1
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 62
+        MUL     $anim_e, 34
+        DIV     $anim_e, 63
+        ADD     $anim_e, 9
+        RET
+.s1:
+        JGE     $anim_p, 187, .s2
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 125
+        MUL     $anim_e, 71
+        DIV     $anim_e, 62
+        ADD     $anim_e, 43
+        RET
+.s2:
+        JGE     $anim_p, 250, .s3
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 187
+        MUL     $anim_e, 123
+        DIV     $anim_e, 63
+        ADD     $anim_e, 114
+        RET
+.s3:
+        JGE     $anim_p, 312, .s4
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 250
+        MUL     $anim_e, 164
+        DIV     $anim_e, 62
+        ADD     $anim_e, 237
+        RET
+.s4:
+        JGE     $anim_p, 375, .s5
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 312
+        MUL     $anim_e, 159
+        DIV     $anim_e, 63
+        ADD     $anim_e, 401
+        RET
+.s5:
+        JGE     $anim_p, 437, .s6
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 375
+        MUL     $anim_e, 124
+        DIV     $anim_e, 62
+        ADD     $anim_e, 560
+        RET
+.s6:
+        JGE     $anim_p, 500, .s7
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 437
+        MUL     $anim_e, 92
+        DIV     $anim_e, 63
+        ADD     $anim_e, 684
+        RET
+.s7:
+        JGE     $anim_p, 562, .s8
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 500
+        MUL     $anim_e, 68
+        DIV     $anim_e, 62
+        ADD     $anim_e, 776
+        RET
+.s8:
+        JGE     $anim_p, 625, .s9
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 562
+        MUL     $anim_e, 50
+        DIV     $anim_e, 63
+        ADD     $anim_e, 844
+        RET
+.s9:
+        JGE     $anim_p, 687, .s10
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 625
+        MUL     $anim_e, 38
+        DIV     $anim_e, 62
+        ADD     $anim_e, 894
+        RET
+.s10:
+        JGE     $anim_p, 750, .s11
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 687
+        MUL     $anim_e, 27
+        DIV     $anim_e, 63
+        ADD     $anim_e, 932
+        RET
+.s11:
+        JGE     $anim_p, 812, .s12
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 750
+        MUL     $anim_e, 20
+        DIV     $anim_e, 62
+        ADD     $anim_e, 959
+        RET
+.s12:
+        JGE     $anim_p, 875, .s13
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 812
+        MUL     $anim_e, 12
+        DIV     $anim_e, 63
+        ADD     $anim_e, 979
+        RET
+.s13:
+        JGE     $anim_p, 937, .s14
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 875
+        MUL     $anim_e, 7
+        DIV     $anim_e, 62
+        ADD     $anim_e, 991
+        RET
+.s14:
+        JGE     $anim_p, 1000, .s15
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 937
+        MUL     $anim_e, 2
+        DIV     $anim_e, 63
+        ADD     $anim_e, 998
+        RET
+.s15:
+        SET     $anim_e, 1000
+        RET
+
+; cubic-bezier(250, 800, 250, 1000) / 1000: $anim_p -> $anim_e
+ease2:
+        JGE     $anim_p, 62, .s0
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 0
+        MUL     $anim_e, 203
+        DIV     $anim_e, 62
+        ADD     $anim_e, 0
+        RET
+.s0:
+        JGE     $anim_p, 125, .s1
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 62
+        MUL     $anim_e, 199
+        DIV     $anim_e, 63
+        ADD     $anim_e, 203
+        RET
+.s1:
+        JGE     $anim_p, 187, .s2
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 125
+        MUL     $anim_e, 174
+        DIV     $anim_e, 62
+        ADD     $anim_e, 402
+        RET
+.s2:
+        JGE     $anim_p, 250, .s3
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 187
+        MUL     $anim_e, 132
+        DIV     $anim_e, 63
+        ADD     $anim_e, 576
+        RET
+.s3:
+        JGE     $anim_p, 312, .s4
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 250
+        MUL     $anim_e, 92
+        DIV     $anim_e, 62
+        ADD     $anim_e, 708
+        RET
+.s4:
+        JGE     $anim_p, 375, .s5
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 312
+        MUL     $anim_e, 62
+        DIV     $anim_e, 63
+        ADD     $anim_e, 800
+        RET
+.s5:
+        JGE     $anim_p, 437, .s6
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 375
+        MUL     $anim_e, 43
+        DIV     $anim_e, 62
+        ADD     $anim_e, 862
+        RET
+.s6:
+        JGE     $anim_p, 500, .s7
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 437
+        MUL     $anim_e, 30
+        DIV     $anim_e, 63
+        ADD     $anim_e, 905
+        RET
+.s7:
+        JGE     $anim_p, 562, .s8
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 500
+        MUL     $anim_e, 21
+        DIV     $anim_e, 62
+        ADD     $anim_e, 935
+        RET
+.s8:
+        JGE     $anim_p, 625, .s9
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 562
+        MUL     $anim_e, 15
+        DIV     $anim_e, 63
+        ADD     $anim_e, 956
+        RET
+.s9:
+        JGE     $anim_p, 687, .s10
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 625
+        MUL     $anim_e, 11
+        DIV     $anim_e, 62
+        ADD     $anim_e, 971
+        RET
+.s10:
+        JGE     $anim_p, 750, .s11
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 687
+        MUL     $anim_e, 8
+        DIV     $anim_e, 63
+        ADD     $anim_e, 982
+        RET
+.s11:
+        JGE     $anim_p, 812, .s12
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 750
+        MUL     $anim_e, 5
+        DIV     $anim_e, 62
+        ADD     $anim_e, 990
+        RET
+.s12:
+        JGE     $anim_p, 875, .s13
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 812
+        MUL     $anim_e, 3
+        DIV     $anim_e, 63
+        ADD     $anim_e, 995
+        RET
+.s13:
+        JGE     $anim_p, 937, .s14
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 875
+        MUL     $anim_e, 2
+        DIV     $anim_e, 62
+        ADD     $anim_e, 998
+        RET
+.s14:
+        JGE     $anim_p, 1000, .s15
+        SET     $anim_e, $anim_p
+        SUB     $anim_e, 937
+        MUL     $anim_e, 0
+        DIV     $anim_e, 63
+        ADD     $anim_e, 1000
+        RET
+.s15:
+        SET     $anim_e, 1000
+        RET
