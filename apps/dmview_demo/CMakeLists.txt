@@ -6,7 +6,7 @@
 # packaged as the module's views.
 set(DMOD_MODULE_NAME        dmview_demo)
 set(DMOD_AUTHOR_NAME        "Patryk Kubiak")
-set(DMOD_STACK_SIZE         2048)
+set(DMOD_STACK_SIZE         8192)
 set(DMOD_PRIORITY           1)
 set(DMOD_DMR_PATH           ${CMAKE_CURRENT_SOURCE_DIR}/dmview_demo.dmr)
 set(DMOD_ASSETS_PATHS       ${PROJECT_SOURCE_DIR}/examples/dmodos ${PROJECT_SOURCE_DIR}/examples/dmodos/fonts ${PROJECT_SOURCE_DIR}/examples/dmodos-480x800)
